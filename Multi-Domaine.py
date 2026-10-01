@@ -454,7 +454,7 @@ def apply_theme() -> None:
         background_overlay = "linear-gradient(135deg, rgba(7,11,20,0.92), rgba(15,23,42,0.88))"
         surface = "rgba(15,23,42,0.92)"
         text = "#F8FAFC"
-        muted = "#94A3B8"
+        muted = "#CBD5E1"
         border = "rgba(148,163,184,0.18)"
         accent = "#8B5CF6"
         accent_2 = "#3B82F6"
@@ -507,14 +507,13 @@ def apply_theme() -> None:
             -webkit-backdrop-filter: blur(14px);
         }}
         .brand {{ font-size: 20px; font-weight: 750; color: {text}; white-space: nowrap; }}
-        .brand-sub {{ font-size: 12px; color: {muted}; margin-top: 1px; }}
+        .brand-sub {{ font-size: 13px; color: {muted} !important; margin-top: 2px; font-weight: 500; }}
         .card {{ background: {surface}; border: 1px solid {border}; border-radius: 18px; padding: 18px; margin-bottom: 18px; direction: {direction}; text-align: {text_align}; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }}
         .auth-box {{ max-width: 470px; margin: 40px auto; padding: 28px; background: {surface}; border: 1px solid {border}; border-radius: 20px; box-shadow: 0 15px 45px rgba(15,23,42,0.08); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); direction: {direction}; }}
         .stButton > button {{ border-radius: 11px; border: 1px solid {border}; font-weight: 600; transition: all 0.2s ease; }}
         .stButton > button:hover {{ transform: translateY(-2px); border-color: {accent}; box-shadow: 0 8px 20px rgba(99,102,241,0.15); }}
         .stButton > button[kind="primary"] {{ background: linear-gradient(135deg, {accent}, {accent_2}); color: white; border: none; }}
         
-        /* Ajustements de visibilité des labels de téléversement */
         label[data-testid="stFileUploaderDropzoneInstructions"] span {{
             color: {label_color} !important;
             font-weight: 600 !important;
@@ -688,8 +687,8 @@ def render_sidebar() -> None:
         if LOGO_IMAGE:
             st.markdown(
                 f"""
-                <div style="text-align: center; margin-bottom: 15px;">
-                    <img src="{LOGO_IMAGE}" style="max-height: 70px; width: auto; border-radius: 10px;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <img src="{LOGO_IMAGE}" style="max-height: 55px; width: auto; border-radius: 8px;">
                 </div>
                 """,
                 unsafe_allow_html=True,

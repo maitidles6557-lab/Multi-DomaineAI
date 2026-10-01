@@ -24,17 +24,53 @@ from google.genai import types
 
 
 # ============================================================
-# CONFIGURATION ET PATHS
+# CONFIGURATION ET CHARGEMENT DES ASSETS
 # ============================================================
 
+BASE_DIR = Path(__file__).resolve().parent
+ASSETS_DIR = BASE_DIR / "assets"
+DB_PATH = str(BASE_DIR / "multidomaine.db")
+
+
+def trouver_image_par_mot_cle(mots_cles):
+    """Cherche une image dans assets/ correspondant à des mots-clés précis."""
+    if not ASSETS_DIR.exists():
+        return None
+
+    extensions = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
+    for path in ASSETS_DIR.iterdir():
+        if path.is_file() and path.suffix.lower() in extensions:
+            nom_fichier = path.stem.lower()
+            if any(kw in nom_fichier for kw in mots_cles):
+                return path
+    return None
+
+
+def encoder_image_base64(path):
+    """Encode une image en base64 pour l'intégrer en HTML/CSS."""
+    if path and path.exists():
+        mime_type = mimetypes.guess_type(path.name)[0] or "image/png"
+        encoded = base64.b64encode(path.read_bytes()).decode("utf-8")
+        return f"data:{mime_type};base64,{encoded}"
+    return None
+
+
+# Détection séparée de l'image de fond et du logo
+BG_PATH = trouver_image_par_mot_cle(["background", "bg", "fond"])
+LOGO_PATH = trouver_image_par_mot_cle(["logo", "icon", "app", "favicon"])
+
+BACKGROUND_IMAGE = encoder_image_base64(BG_PATH)
+LOGO_IMAGE = encoder_image_base64(LOGO_PATH)
+
+# Configuration de la page avec favicon (logo) si disponible
 st.set_page_config(
     page_title="Multi-DomaineAI",
-    page_icon="📚",
+    page_icon=str(LOGO_PATH) if LOGO_PATH else "📚",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Détection automatique de Tesseract (Cloud Linux vs Local Windows)
+# Détection automatique de Tesseract (Linux / Streamlit Cloud vs Windows)
 SYSTEM_TESSERACT = shutil.which("tesseract")
 WINDOWS_TESSERACT = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
@@ -45,46 +81,9 @@ elif os.path.exists(WINDOWS_TESSERACT):
 else:
     TESSERACT_CMD = "tesseract"
 
-BASE_DIR = Path(__file__).resolve().parent
-ASSETS_DIR = BASE_DIR / "assets"
-DB_PATH = str(BASE_DIR / "multidomaine.db")
-
-
-def trouver_background():
-    """Trouve l'image de background à la racine ou dans assets/."""
-    extensions = {".png", ".jpg", ".jpeg", ".webp"}
-    
-    # 1. Chercher d'abord dans assets/
-    if ASSETS_DIR.exists():
-        for path in ASSETS_DIR.iterdir():
-            if path.is_file() and path.suffix.lower() in extensions:
-                if "background" in path.stem.lower() or "bg" in path.stem.lower():
-                    return path
-        # Si aucun mot 'background' trouvé, prendre la 1ère image du dossier assets
-        images = [p for p in ASSETS_DIR.iterdir() if p.suffix.lower() in extensions]
-        if images:
-            return images[0]
-            
-    return None
-
-
-def encoder_background():
-    """Encode l'image en data URI pour le CSS."""
-    image_path = trouver_background()
-
-    if image_path is None:
-        return None
-
-    mime_type = mimetypes.guess_type(image_path.name)[0] or "image/png"
-    encoded = base64.b64encode(image_path.read_bytes()).decode("utf-8")
-
-    return f"data:{mime_type};base64,{encoded}"
-
-
-BACKGROUND_IMAGE = encoder_background()
 
 # ============================================================
-# TRANSLATIONS
+# TRADUCTIONS (FR, EN, AR)
 # ============================================================
 
 TEXT = {
@@ -293,7 +292,7 @@ for key, value in defaults.items():
 
 
 # ============================================================
-# DATABASE
+# BASE DE DONNÉES SQLITE
 # ============================================================
 
 def get_db():
@@ -335,7 +334,6 @@ def init_db():
                 FOREIGN KEY(conversation_id) REFERENCES conversations(id)
             )
         """)
-
         db.commit()
 
 
@@ -349,7 +347,6 @@ def hash_password(password, salt=None):
         salt,
         310_000,
     )
-
     return password_hash.hex(), salt.hex()
 
 
@@ -378,9 +375,7 @@ def create_user(username, password):
 
 def authenticate_user(username, password):
     with get_db() as db:
-        user = db.execute(
-            "SELECT * FROM users WHERE username = ?", (username,)
-        ).fetchone()
+        user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
 
     if user is None:
         return None
@@ -455,15 +450,12 @@ init_db()
 
 
 # ============================================================
-# CUSTOM CSS
+# STYLES CSS PERSONNALISÉS ET THÈMES
 # ============================================================
 
 def apply_theme():
     if st.session_state.theme == "dark":
-        background = "#070B14"
-        background_overlay = (
-            "linear-gradient(135deg, rgba(7,11,20,0.94), rgba(15,23,42,0.88))"
-        )
+        background_overlay = "linear-gradient(135deg, rgba(7,11,20,0.92), rgba(15,23,42,0.88))"
         surface = "rgba(15,23,42,0.92)"
         surface_2 = "rgba(30,41,59,0.78)"
         text = "#F8FAFC"
@@ -473,12 +465,9 @@ def apply_theme():
         accent_2 = "#3B82F6"
 
     elif st.session_state.theme == "soft":
-        background = "#E8F0FF"
-        background_overlay = (
-            "linear-gradient(135deg, rgba(232,240,255,0.55), rgba(243,232,255,0.55))"
-        )
-        surface = "rgba(255,255,255,0.78)"
-        surface_2 = "rgba(255,255,255,0.62)"
+        background_overlay = "linear-gradient(135deg, rgba(232,240,255,0.65), rgba(243,232,255,0.65))"
+        surface = "rgba(255,255,255,0.85)"
+        surface_2 = "rgba(255,255,255,0.70)"
         text = "#1E293B"
         muted = "#64748B"
         border = "rgba(99,102,241,0.18)"
@@ -486,12 +475,9 @@ def apply_theme():
         accent_2 = "#8B5CF6"
 
     else:
-        background = "#F6F8FC"
-        background_overlay = (
-            "linear-gradient(135deg, rgba(246,248,252,0.92), rgba(255,255,255,0.86))"
-        )
-        surface = "rgba(255,255,255,0.88)"
-        surface_2 = "rgba(241,245,249,0.82)"
+        background_overlay = "linear-gradient(135deg, rgba(246,248,252,0.90), rgba(255,255,255,0.85))"
+        surface = "rgba(255,255,255,0.90)"
+        surface_2 = "rgba(241,245,249,0.85)"
         text = "#0F172A"
         muted = "#64748B"
         border = "rgba(148,163,184,0.24)"
@@ -499,9 +485,7 @@ def apply_theme():
         accent_2 = "#7C3AED"
 
     if BACKGROUND_IMAGE:
-        app_background = (
-            f"background-image: {background_overlay}, url('{BACKGROUND_IMAGE}');"
-        )
+        app_background = f"background-image: {background_overlay}, url('{BACKGROUND_IMAGE}');"
     else:
         app_background = f"background: {background_overlay};"
 
@@ -512,7 +496,6 @@ def apply_theme():
         f"""
         <style>
         .stApp {{
-            background: {background};
             {app_background}
             background-size: cover;
             background-position: center center;
@@ -528,20 +511,20 @@ def apply_theme():
             backdrop-filter: blur(14px);
             -webkit-backdrop-filter: blur(14px);
         }}
-        .brand {{ font-size: 19px; font-weight: 750; color: {text}; white-space: nowrap; }}
-        .brand-sub {{ font-size: 12px; color: {muted}; margin-top: 2px; }}
-        .hero {{ text-align: center; margin: 10px auto 30px auto; max-width: 760px; direction: {direction}; }}
-        .hero-title {{ font-size: clamp(30px, 5vw, 48px); font-weight: 800; letter-spacing: -1.5px; color: {text}; margin-bottom: 8px; }}
+        .brand {{ font-size: 20px; font-weight: 750; color: {text}; white-space: nowrap; }}
+        .brand-sub {{ font-size: 12px; color: {muted}; margin-top: 1px; }}
+        .hero {{ text-align: center; margin: 10px auto 25px auto; max-width: 760px; direction: {direction}; }}
+        .hero-title {{ font-size: clamp(30px, 5vw, 46px); font-weight: 800; letter-spacing: -1.5px; color: {text}; margin-bottom: 6px; }}
         .hero-subtitle {{ font-size: 15px; color: {muted}; }}
-        .card {{ background: {surface}; border: 1px solid {border}; border-radius: 18px; padding: 20px; margin-bottom: 18px; direction: {direction}; text-align: {text_align}; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }}
+        .card {{ background: {surface}; border: 1px solid {border}; border-radius: 18px; padding: 18px; margin-bottom: 18px; direction: {direction}; text-align: {text_align}; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }}
         .bot-message {{ background: {surface}; border: 1px solid {border}; border-radius: 16px; padding: 18px; margin: 10px 0 18px 0; color: {text}; line-height: 1.75; direction: {direction}; text-align: {text_align}; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }}
         .user-message {{ background: {surface_2}; border: 1px solid {border}; border-radius: 16px; padding: 14px 16px; margin: 10px 0; color: {text}; direction: {direction}; text-align: {text_align}; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }}
         .small-muted {{ color: {muted}; font-size: 13px; }}
         .status-pill {{ display: inline-block; padding: 6px 10px; border-radius: 999px; background: {surface_2}; border: 1px solid {border}; color: {muted}; font-size: 12px; }}
         .stButton > button {{ border-radius: 11px; border: 1px solid {border}; font-weight: 600; transition: all 0.2s ease; }}
-        .stButton > button:hover {{ transform: translateY(-2px); border-color: {accent}; box-shadow: 0 99px 22px rgba(99,102,241,0.16); }}
+        .stButton > button:hover {{ transform: translateY(-2px); border-color: {accent}; box-shadow: 0 8px 20px rgba(99,102,241,0.15); }}
         .stButton > button[kind="primary"] {{ background: linear-gradient(135deg, {accent}, {accent_2}); color: white; border: none; }}
-        .auth-box {{ max-width: 470px; margin: 45px auto; padding: 28px; background: {surface}; border: 1px solid {border}; border-radius: 20px; box-shadow: 0 15px 45px rgba(15,23,42,0.08); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); direction: {direction}; }}
+        .auth-box {{ max-width: 470px; margin: 40px auto; padding: 28px; background: {surface}; border: 1px solid {border}; border-radius: 20px; box-shadow: 0 15px 45px rgba(15,23,42,0.08); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); direction: {direction}; }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -549,7 +532,7 @@ def apply_theme():
 
 
 # ============================================================
-# TOP BAR & NAVIGATION
+# BARRE SUPÉRIEURE AVEC LOGO ET SÉLECTEURS
 # ============================================================
 
 def render_topbar():
@@ -559,15 +542,29 @@ def render_topbar():
     )
 
     with left:
-        st.markdown(
-            f"""
-            <div class="brand">
-                📚 {tr("app_name")}
-                <div class="brand-sub">{tr("tagline")}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        if LOGO_IMAGE:
+            st.markdown(
+                f"""
+                <div style="display: flex; align-items: center; gap: 14px;">
+                    <img src="{LOGO_IMAGE}" style="height: 48px; width: auto; max-width: 150px; object-fit: contain; border-radius: 8px;">
+                    <div>
+                        <div class="brand">{tr("app_name")}</div>
+                        <div class="brand-sub">{tr("tagline")}</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"""
+                <div class="brand">
+                    📚 {tr("app_name")}
+                    <div class="brand-sub">{tr("tagline")}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     with lang_col:
         language = st.selectbox(
@@ -613,7 +610,7 @@ def render_topbar():
 
 
 # ============================================================
-# AUTHENTICATION SCREEN
+# ÉCRAN D'AUTHENTIFICATION
 # ============================================================
 
 def render_auth():
@@ -686,11 +683,21 @@ def render_auth():
 
 
 # ============================================================
-# SIDEBAR
+# MENU LATÉRAL (SIDEBAR)
 # ============================================================
 
 def render_sidebar():
     with st.sidebar:
+        if LOGO_IMAGE:
+            st.markdown(
+                f"""
+                <div style="text-align: center; margin-bottom: 15px;">
+                    <img src="{LOGO_IMAGE}" style="max-height: 70px; width: auto; border-radius: 10px;">
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
         if st.session_state.user_id:
             st.markdown(f"### 👤 {st.session_state.username}")
             st.caption(tr("login_to_save"))
@@ -708,7 +715,7 @@ def render_sidebar():
                 st.caption(tr("no_history"))
 
             for conversation in conversations:
-                title = conversation["title"][:34]
+                title = conversation["title"][:30]
                 if st.button(title, key=f"conv_{conversation['id']}", use_container_width=True):
                     st.session_state.active_conversation_id = conversation["id"]
                     rows = get_messages(conversation["id"])
@@ -736,7 +743,7 @@ def render_sidebar():
 
 
 # ============================================================
-# LOAD MODELS & CLIENTS
+# MODÈLES & API CLIENTS
 # ============================================================
 
 @st.cache_resource
@@ -845,7 +852,7 @@ def creer_chunks(uploaded_files):
 
 
 # ============================================================
-# FAISS SEARCH
+# FAISS SEARCH (RAG)
 # ============================================================
 
 def creer_index(chunks):
@@ -897,7 +904,7 @@ Identifie :
 
 Si l'image contient un tableau, schéma, diagramme ou illustration pédagogique,
 explique sa structure et son contenu.
-Produis une description claire et exploitable pour une recherche dans une base documentaire.
+Produis une description claire et exploitable pour une recherche documentaire.
 """
     image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
     response = gemini_client.models.generate_content(
@@ -974,7 +981,7 @@ RÈGLES :
 
 
 # ============================================================
-# LLM GENERATION (GROQ)
+# GÉNÉRATION LLM (GROQ)
 # ============================================================
 
 def generer_reponse(prompt):
@@ -1006,7 +1013,7 @@ def repondre_image_pdf(question, description, index, chunks):
 
 
 # ============================================================
-# CHAT HISTORIQUE UTILS
+# PERSISTANCION DE CHAT
 # ============================================================
 
 def add_chat_message(role, content):
@@ -1029,7 +1036,7 @@ def persist_chat(user_question, assistant_answer):
 
 
 # ============================================================
-# APPLIQUER INTERFACE
+# APPLICATION ET RENDU
 # ============================================================
 
 apply_theme()
@@ -1067,7 +1074,7 @@ else:
 
 
 # ============================================================
-# SECTION UPLOAD
+# ZONE UPLOAD (PDF / IMAGE)
 # ============================================================
 
 pdf_col, image_col = st.columns(2, gap="large")
@@ -1086,7 +1093,7 @@ with image_col:
 
 
 # ============================================================
-# TRAITEMENT PDF (RAG)
+# LOGIQUE RAG & IMAGE
 # ============================================================
 
 if uploaded_files:
@@ -1105,11 +1112,6 @@ if uploaded_files:
             st.session_state.last_sources = []
 
         st.success(f"✅ {tr('rag_ready')} — {len(chunks)} chunks.")
-
-
-# ============================================================
-# TRAITEMENT IMAGE (GEMINI)
-# ============================================================
 
 if uploaded_image:
     image_bytes = uploaded_image.getvalue()
@@ -1134,7 +1136,7 @@ if st.session_state.description_image:
 
 
 # ============================================================
-# CHAT
+# ZONE DE CHAT
 # ============================================================
 
 st.divider()
@@ -1213,7 +1215,7 @@ if st.button(f"➤ {tr('send')}", use_container_width=True, type="primary"):
 
 
 # ============================================================
-# SOURCES
+# CITER LES SOURCES PDF
 # ============================================================
 
 if st.session_state.last_sources:

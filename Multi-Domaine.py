@@ -655,6 +655,15 @@ def apply_theme():
             background: {background};
             {app_background}
             --accent: {accent};
+            --accent-2: {accent_2};
+            --theme-bg: {background};
+            --theme-surface: {surface};
+            --theme-surface-2: {surface_2};
+            --theme-input: {input_bg};
+            --theme-text: {text};
+            --theme-muted: {muted};
+            --theme-border: {border};
+            --theme-shadow: {shadow};
             background-size: cover;
             background-position: center center;
             background-attachment: fixed;
@@ -852,10 +861,10 @@ def apply_theme():
         [data-testid="stCaptionContainer"] {{ color: {text}; }}
 
         [data-baseweb="select"] > div {{
-            background: {input_bg};
-            color: {text};
-            border-color: {border};
-            border-radius: 12px;
+            background: var(--theme-input) !important;
+            color: var(--theme-text) !important;
+            border-color: var(--theme-border) !important;
+            border-radius: 12px !important;
         }}
 
         [data-baseweb="select"] span {{ color: {text} !important; }}
@@ -903,8 +912,8 @@ def apply_theme():
         [data-testid="stRadio"] label:nth-of-type(4) p::before {{ content: "\f0c1"; }}
 
         [data-testid="stFileUploader"] section {{
-            background: {surface} !important;
-            border: 1px dashed {border} !important;
+            background: var(--theme-surface) !important;
+            border: 1px dashed var(--theme-border) !important;
             border-radius: 14px;
         }}
 
@@ -923,35 +932,75 @@ def apply_theme():
         }}
 
         .stTextInput input, .stTextArea textarea {{
-            background: {input_bg} !important;
-            color: {text} !important;
+            background: var(--theme-input) !important;
+            color: var(--theme-text) !important;
             border-radius: 12px !important;
-            border-color: {border} !important;
+            border-color: var(--theme-border) !important;
         }}
 
         .stTextInput input::placeholder, .stTextArea textarea::placeholder {{
             color: {muted} !important;
         }}
 
-        .stButton > button {{
-            border-radius: 11px;
-            border: 1px solid {border} !important;
-            color: {text} !important;
-            background: {surface} !important;
+        /* --------------------------------------------------------
+           Streamlit native buttons: force them to follow the
+           currently selected application theme.
+           -------------------------------------------------------- */
+        .stButton > button,
+        [data-testid="stBaseButton-secondary"],
+        [data-testid="stBaseButton-primary"] {{
+            min-height: 42px;
+            border-radius: 11px !important;
+            border: 1px solid var(--theme-border) !important;
+            color: var(--theme-text) !important;
+            background: var(--theme-surface) !important;
+            background-image: none !important;
+            box-shadow: none !important;
             font-weight: 650;
-            transition: all .18s ease;
+            transition: transform .18s ease,
+                        border-color .18s ease,
+                        background .18s ease,
+                        color .18s ease,
+                        box-shadow .18s ease;
         }}
 
-        .stButton > button:hover {{
+        .stButton > button:hover,
+        [data-testid="stBaseButton-secondary"]:hover,
+        [data-testid="stBaseButton-primary"]:hover {{
             transform: translateY(-1px);
-            border-color: {accent};
-            box-shadow: 0 8px 20px rgba(79,70,229,.16);
+            border-color: var(--accent) !important;
+            background: var(--theme-surface-2) !important;
+            color: var(--theme-text) !important;
+            box-shadow: 0 8px 20px rgba(79,70,229,.16) !important;
         }}
 
-        .stButton > button[kind="primary"] {{
-            background: linear-gradient(135deg, {accent}, {accent_2});
-            color: white;
-            border: none;
+        .stButton > button[kind="primary"],
+        [data-testid="stBaseButton-primary"] {{
+            background: linear-gradient(135deg, var(--accent), var(--accent-2)) !important;
+            color: #FFFFFF !important;
+            border: 0 !important;
+        }}
+
+        .stButton > button[kind="primary"]:hover,
+        [data-testid="stBaseButton-primary"]:hover {{
+            color: #FFFFFF !important;
+            background: linear-gradient(135deg, var(--accent-2), var(--accent)) !important;
+        }}
+
+        /* Upload button inside Streamlit's file uploader. */
+        [data-testid="stFileUploader"] button,
+        [data-testid="stFileUploaderDropzone"] button {{
+            background: var(--theme-surface-2) !important;
+            color: var(--theme-text) !important;
+            border: 1px solid var(--theme-border) !important;
+            border-radius: 10px !important;
+        }}
+
+        [data-testid="stFileUploader"] button:hover,
+        [data-testid="stFileUploaderDropzone"] button:hover {{
+            background: var(--theme-input) !important;
+            color: var(--theme-text) !important;
+            border-color: var(--accent) !important;
         }}
 
         .auth-box {{

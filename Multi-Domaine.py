@@ -942,6 +942,14 @@ def apply_theme():
             color: {muted} !important;
         }}
 
+        /* Force Streamlit/BaseWeb theme tokens to follow the selected mode. */
+        .stApp, [data-testid="stAppViewContainer"] {{
+            --primary-color: {accent} !important;
+            --background-color: {background} !important;
+            --secondary-background-color: {surface} !important;
+            --text-color: {text} !important;
+        }}
+
         /* --------------------------------------------------------
            STREAMLIT NATIVE BUTTONS — THEME AWARE
            Use concrete theme values here (not only CSS variables)
@@ -949,12 +957,16 @@ def apply_theme():
            the .stApp variable scope.
            -------------------------------------------------------- */
 
+        div[data-testid="stButton"] > button,
         div[data-testid="stButton"] button,
+        div[data-testid="stDownloadButton"] > button,
         div[data-testid="stDownloadButton"] button,
         button[data-testid="stBaseButton-secondary"],
         button[data-testid="stBaseButton-primary"],
+        button[data-testid="stBaseButton-tertiary"],
         button[kind="secondary"],
-        button[kind="tertiary"] {{
+        button[kind="tertiary"],
+        button[kind="primary"] {{
             min-height: 42px !important;
             border-radius: 11px !important;
             border: 1px solid {border} !important;
@@ -984,6 +996,28 @@ def apply_theme():
             background-color: {surface_2} !important;
             background: {surface_2} !important;
             box-shadow: 0 8px 20px {shadow} !important;
+        }}
+
+        /* Final override for Streamlit versions that inject button styles
+           on the native element itself. */
+        div[data-testid="stButton"] button:not([kind="primary"]),
+        div[data-testid="stDownloadButton"] button,
+        [data-testid="stBaseButton-secondary"],
+        [data-testid="stBaseButton-tertiary"] {{
+            background: {surface} !important;
+            background-color: {surface} !important;
+            color: {text} !important;
+            border-color: {border} !important;
+        }}
+
+        div[data-testid="stButton"] button:not([kind="primary"]):hover,
+        div[data-testid="stDownloadButton"] button:hover,
+        [data-testid="stBaseButton-secondary"]:hover,
+        [data-testid="stBaseButton-tertiary"]:hover {{
+            background: {surface_2} !important;
+            background-color: {surface_2} !important;
+            color: {text} !important;
+            border-color: {accent} !important;
         }}
 
         /* Primary actions keep the active theme accent. */

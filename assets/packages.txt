@@ -2,3 +2,4 @@ tesseract-ocr
 tesseract-ocr-fra
 tesseract-ocr-eng
 tesseract-ocr-ara
+poppler-utils

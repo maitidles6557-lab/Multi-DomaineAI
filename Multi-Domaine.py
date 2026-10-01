@@ -556,10 +556,14 @@ def apply_theme() -> None:
             border: 1px solid {border} !important;
         }}
 
-        /* Style pour la zone de saisie du Chat */
+        /* Style pour la zone de saisie du Chat et son conteneur bas */
+        [data-testid="stBottom"], [data-testid="stChatInputContainer"] {{
+            background-color: transparent !important;
+            background: transparent !important;
+        }}
         [data-testid="stChatInput"] {{
-            background-color: {surface};
-            border: 1px solid {border};
+            background-color: {surface} !important;
+            border: 1px solid {border} !important;
             border-radius: 14px;
         }}
         [data-testid="stChatInput"] textarea {{
@@ -944,7 +948,7 @@ def analyser_image_vision(image_bytes: bytes, mime_type: str) -> str:
             model="gemini-2.5-flash",
             contents=[
                 types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
-                "Décris cette image en détail pour aider un assistant documentaire à répondre aux questions.",
+                "Décris cette image en détail et extrait l'intégralité de son texte visible pour répondre aux questions futures.",
             ],
         )
         return response.text
@@ -1016,7 +1020,7 @@ def render_main_content() -> None:
                 sources.append(f"{d['source']} (Page {d['page']})")
 
         if st.session_state.description_image:
-            context_parts.append(f"[Image {st.session_state.image_name}]: {st.session_state.description_image}")
+            context_parts.append(f"[Contenu de l'image {st.session_state.image_name}]: {st.session_state.description_image}")
 
         contexte_global = "\n\n".join(context_parts)
         full_prompt = (

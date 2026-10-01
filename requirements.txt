@@ -1,8 +1,8 @@
 streamlit
-pymupdf
-Pillow
-numpy
-faiss-cpu
 sentence-transformers
+faiss-cpu
+pymupdf
 groq
 google-genai
+pillow
+pytesseract

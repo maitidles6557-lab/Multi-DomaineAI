@@ -17,6 +17,7 @@ import faiss
 from google import genai
 from google.genai import types
 from groq import Groq
+from PIL import Image
 import pymupdf
 from sentence_transformers import SentenceTransformer
 import streamlit as st
@@ -59,7 +60,7 @@ LOGO_IMAGE = encoder_image_base64(LOGO_PATH)
 
 st.set_page_config(
     page_title="Multi-DomaineAI",
-    page_icon=str(LOGO_PATH) if LOGO_PATH else "📚",
+    page_icon=str(LOGO_PATH) if (LOGO_PATH and LOGO_PATH.exists()) else "📚",
     layout="wide",
     initial_sidebar_state="expanded",
 )

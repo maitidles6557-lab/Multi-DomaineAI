@@ -30,7 +30,7 @@ from google.genai import types
 
 st.set_page_config(
     page_title="Multi-DomaineAI",
-    page_icon="📚",
+    page_icon="assets/logo.jpg",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -594,57 +594,54 @@ init_db()
 # ============================================================
 
 def apply_theme():
-    """Applique le thème courant avec un background responsive optionnel."""
-    if st.session_state.theme == "dark":
+    """Applique un thème complet et cohérent à toute l'interface."""
+    theme = st.session_state.theme
+
+    if theme == "dark":
         background = "#070B14"
-        background_overlay = (
-            "linear-gradient("
-            "135deg, rgba(7,11,20,0.94), rgba(15,23,42,0.88))"
-        )
-        surface = "rgba(15,23,42,0.92)"
-        surface_2 = "rgba(30,41,59,0.78)"
+        overlay = "linear-gradient(135deg, rgba(7,11,20,.93), rgba(15,23,42,.90))"
+        surface = "rgba(15,23,42,.94)"
+        surface_2 = "rgba(30,41,59,.86)"
+        input_bg = "rgba(15,23,42,.96)"
         text = "#F8FAFC"
         muted = "#94A3B8"
-        border = "rgba(148,163,184,0.18)"
+        border = "rgba(148,163,184,.20)"
         accent = "#8B5CF6"
         accent_2 = "#3B82F6"
+        shadow = "rgba(0,0,0,.28)"
 
-    elif st.session_state.theme == "soft":
-        # Deux couleurs principales pour le mode Soft.
-        background = "#E8F0FF"
-        background_overlay = (
-            "linear-gradient("
-            "135deg, rgba(232,240,255,0.90), rgba(243,232,255,0.90))"
-        )
-        surface = "rgba(255,255,255,0.78)"
-        surface_2 = "rgba(255,255,255,0.62)"
-        text = "#1E293B"
-        muted = "#64748B"
-        border = "rgba(99,102,241,0.18)"
-        accent = "#6366F1"
+    elif theme == "soft":
+        background = "#E8ECF8"
+        overlay = "linear-gradient(135deg, rgba(236,239,249,.82), rgba(245,238,250,.78))"
+        surface = "rgba(255,255,255,.86)"
+        surface_2 = "rgba(247,248,253,.88)"
+        input_bg = "rgba(255,255,255,.92)"
+        text = "#172033"
+        muted = "#5B667A"
+        border = "rgba(79,70,229,.18)"
+        accent = "#5B4AE8"
         accent_2 = "#8B5CF6"
+        shadow = "rgba(49,46,129,.10)"
 
     else:
-        background = "#F6F8FC"
-        background_overlay = (
-            "linear-gradient("
-            "135deg, rgba(246,248,252,0.92), rgba(255,255,255,0.86))"
-        )
-        surface = "rgba(255,255,255,0.88)"
-        surface_2 = "rgba(241,245,249,0.82)"
+        background = "#F7F9FC"
+        overlay = "linear-gradient(135deg, rgba(248,250,252,.88), rgba(255,255,255,.84))"
+        surface = "rgba(255,255,255,.92)"
+        surface_2 = "rgba(241,245,249,.90)"
+        input_bg = "rgba(255,255,255,.96)"
         text = "#0F172A"
         muted = "#64748B"
-        border = "rgba(148,163,184,0.24)"
+        border = "rgba(100,116,139,.20)"
         accent = "#4F46E5"
         accent_2 = "#7C3AED"
+        shadow = "rgba(15,23,42,.08)"
 
     if BACKGROUND_IMAGE:
         app_background = (
-            f"background-image: {background_overlay}, "
-            f"url('{BACKGROUND_IMAGE}');"
+            f"background-image: {overlay}, url('{BACKGROUND_IMAGE}');"
         )
     else:
-        app_background = f"background: {background_overlay};"
+        app_background = f"background: {overlay};"
 
     direction = "rtl" if st.session_state.language == "ar" else "ltr"
     text_align = "right" if st.session_state.language == "ar" else "left"
@@ -652,6 +649,8 @@ def apply_theme():
     st.markdown(
         f"""
         <style>
+        @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css');
+
         .stApp {{
             background: {background};
             {app_background}
@@ -663,15 +662,18 @@ def apply_theme():
             min-height: 100vh;
         }}
 
-        [data-testid="stHeader"] {{
-            background: transparent;
-        }}
+        [data-testid="stHeader"] {{ background: transparent; }}
+        [data-testid="stToolbar"] {{ right: 1rem; }}
 
         [data-testid="stSidebar"] {{
             background: {surface};
             border-right: 1px solid {border};
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+        }}
+
+        [data-testid="stSidebar"] > div:first-child {{
+            background: transparent;
         }}
 
         .topbar {{
@@ -679,20 +681,55 @@ def apply_theme():
             align-items: center;
             justify-content: space-between;
             gap: 18px;
-            padding: 14px 18px;
-            margin-bottom: 28px;
+            padding: 12px 16px;
+            margin-bottom: 26px;
             background: {surface};
             border: 1px solid {border};
             border-radius: 18px;
-            box-shadow: 0 8px 30px rgba(15,23,42,0.05);
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
+            box-shadow: 0 10px 32px {shadow};
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
             direction: ltr;
         }}
 
+        .brand-wrap {{
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }}
+
+        .brand-logo {{
+            width: 58px;
+            height: 58px;
+            min-width: 58px;
+            border-radius: 50%;
+            object-fit: cover;
+            object-position: center;
+            display: block;
+            border: 2px solid rgba(255,255,255,.90);
+            box-shadow: 0 8px 22px rgba(79,70,229,.20);
+            background: white;
+        }}
+
+        .brand-logo-fallback {{
+            width: 58px;
+            height: 58px;
+            min-width: 58px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 800;
+            color: white;
+            background: linear-gradient(135deg, {accent}, {accent_2});
+            box-shadow: 0 8px 22px rgba(79,70,229,.20);
+        }}
+
         .brand {{
-            font-size: 19px;
-            font-weight: 750;
+            font-size: 18px;
+            font-weight: 800;
             color: {text};
             white-space: nowrap;
         }}
@@ -700,44 +737,43 @@ def apply_theme():
         .brand-sub {{
             font-size: 12px;
             color: {muted};
-            margin-top: 2px;
+            margin-top: 3px;
         }}
 
         .hero {{
             text-align: center;
-            margin: 10px auto 30px auto;
+            margin: 8px auto 28px auto;
             max-width: 760px;
             direction: {direction};
         }}
 
         .hero-title {{
             font-size: clamp(30px, 5vw, 48px);
-            font-weight: 800;
+            font-weight: 850;
             letter-spacing: -1.5px;
             color: {text};
             margin-bottom: 8px;
         }}
 
-        .hero-subtitle {{
-            font-size: 15px;
-            color: {muted};
+        .hero-subtitle {{ font-size: 15px; color: {muted}; }}
+
+        .card, .bot-message, .user-message, .auth-box {{
+            background: {surface};
+            border: 1px solid {border};
+            box-shadow: 0 10px 30px {shadow};
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
         }}
 
         .card {{
-            background: {surface};
-            border: 1px solid {border};
             border-radius: 18px;
             padding: 20px;
             margin-bottom: 18px;
             direction: {direction};
             text-align: {text_align};
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
         }}
 
         .bot-message {{
-            background: {surface};
-            border: 1px solid {border};
             border-radius: 16px;
             padding: 18px;
             margin: 10px 0 18px 0;
@@ -745,49 +781,103 @@ def apply_theme():
             line-height: 1.75;
             direction: {direction};
             text-align: {text_align};
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
         }}
 
         .user-message {{
-            background: {surface_2};
-            border: 1px solid {border};
             border-radius: 16px;
             padding: 14px 16px;
             margin: 10px 0;
             color: {text};
             direction: {direction};
             text-align: {text_align};
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
         }}
 
-        .small-muted {{
-            color: {muted};
-            font-size: 13px;
-        }}
+        .small-muted {{ color: {muted}; font-size: 13px; }}
 
         .status-pill {{
-            display: inline-block;
-            padding: 6px 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 7px 11px;
             border-radius: 999px;
             background: {surface_2};
             border: 1px solid {border};
-            color: {muted};
+            color: {text};
             font-size: 12px;
+        }}
+
+        /* Streamlit controls follow the active theme */
+        [data-testid="stWidgetLabel"] p,
+        [data-testid="stMarkdownContainer"] p,
+        [data-testid="stMarkdownContainer"] li,
+        [data-testid="stCaptionContainer"] {{ color: {text}; }}
+
+        [data-baseweb="select"] > div {{
+            background: {input_bg};
+            color: {text};
+            border-color: {border};
+            border-radius: 12px;
+        }}
+
+        [data-baseweb="select"] span {{ color: {text} !important; }}
+        [data-baseweb="popover"] {{ background: {surface} !important; }}
+        [role="option"] {{ color: {text} !important; background: {surface} !important; }}
+        [role="option"]:hover {{ background: {surface_2} !important; }}
+
+        [data-testid="stRadio"] label {{
+            color: {text} !important;
+        }}
+
+        [data-testid="stRadio"] label p::before {{
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            display: inline-block;
+            width: 22px;
+            margin-right: 7px;
+            color: {accent};
+        }}
+
+        [data-testid="stRadio"] label:nth-child(1) p::before {{ content: "\f135"; }}
+        [data-testid="stRadio"] label:nth-child(2) p::before {{ content: "\f1c1"; }}
+        [data-testid="stRadio"] label:nth-child(3) p::before {{ content: "\f03e"; }}
+        [data-testid="stRadio"] label:nth-child(4) p::before {{ content: "\f0c1"; }}
+
+        [data-testid="stFileUploader"] section {{
+            background: {surface};
+            border: 1px dashed {border};
+            border-radius: 14px;
+        }}
+
+        [data-testid="stExpander"] {{
+            background: {surface};
+            border: 1px solid {border};
+            border-radius: 14px;
+        }}
+
+        .stTextInput input, .stTextArea textarea {{
+            background: {input_bg} !important;
+            color: {text} !important;
+            border-radius: 12px !important;
+            border-color: {border} !important;
+        }}
+
+        .stTextInput input::placeholder, .stTextArea textarea::placeholder {{
+            color: {muted} !important;
         }}
 
         .stButton > button {{
             border-radius: 11px;
             border: 1px solid {border};
-            font-weight: 600;
-            transition: all 0.2s ease;
+            color: {text};
+            background: {surface};
+            font-weight: 650;
+            transition: all .18s ease;
         }}
 
         .stButton > button:hover {{
-            transform: translateY(-2px);
+            transform: translateY(-1px);
             border-color: {accent};
-            box-shadow: 0 9px 22px rgba(99,102,241,0.16);
+            box-shadow: 0 8px 20px rgba(79,70,229,.16);
         }}
 
         .stButton > button[kind="primary"] {{
@@ -796,55 +886,38 @@ def apply_theme():
             border: none;
         }}
 
-        .stButton > button[kind="primary"]:hover {{
-            box-shadow: 0 12px 26px rgba(99,102,241,0.28);
-        }}
-
-        .stTextInput input,
-        .stTextInput textarea {{
-            border-radius: 11px !important;
-        }}
-
         .auth-box {{
             max-width: 470px;
             margin: 45px auto;
             padding: 28px;
-            background: {surface};
-            border: 1px solid {border};
             border-radius: 20px;
-            box-shadow: 0 15px 45px rgba(15,23,42,0.08);
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
             direction: {direction};
         }}
 
-        @media (max-width: 900px) {{
-            .topbar {{
-                gap: 10px;
-                padding: 12px;
-            }}
+        /* Professional Font Awesome icons used by our HTML headings. */
+        .section-icon {{
+            display: inline-flex;
+            width: 30px;
+            height: 30px;
+            align-items: center;
+            justify-content: center;
+            border-radius: 9px;
+            color: white;
+            background: linear-gradient(135deg, {accent}, {accent_2});
+            margin-right: 8px;
+            font-size: 14px;
+        }}
 
-            .brand {{
-                font-size: 16px;
-            }}
+        @media (max-width: 900px) {{
+            .topbar {{ gap: 10px; padding: 10px; }}
+            .brand {{ font-size: 16px; }}
+            .brand-logo, .brand-logo-fallback {{ width: 50px; height: 50px; min-width: 50px; }}
         }}
 
         @media (max-width: 640px) {{
-            .hero {{
-                margin-top: 4px;
-                margin-bottom: 20px;
-            }}
-
-            .hero-title {{
-                font-size: 32px;
-            }}
-
-            .card,
-            .bot-message,
-            .user-message {{
-                border-radius: 14px;
-                padding: 15px;
-            }}
+            .hero {{ margin-top: 4px; margin-bottom: 20px; }}
+            .hero-title {{ font-size: 32px; }}
+            .card, .bot-message, .user-message {{ border-radius: 14px; padding: 15px; }}
         }}
         </style>
         """,
@@ -875,7 +948,7 @@ def render_topbar():
             <div class="brand-wrap">
                 {logo_html}
                 <div class="brand">
-                    {tr("app_name")}
+                    <i class="fa-solid fa-layer-group" style="margin-right:7px;color:{accent};"></i>{tr("app_name")}
                     <div class="brand-sub">{tr("tagline")}</div>
                 </div>
             </div>
@@ -905,9 +978,9 @@ def render_topbar():
             tr("theme"),
             options=["light", "dark", "soft"],
             format_func=lambda x: {
-                "light": f"☀️ {tr('light')}",
-                "dark": f"🌙 {tr('dark')}",
-                "soft": f"◇ {tr('soft')}",
+                "light": tr("light"),
+                "dark": tr("dark"),
+                "soft": tr("soft"),
             }[x],
             key="theme_selector",
             label_visibility="collapsed",
@@ -920,7 +993,7 @@ def render_topbar():
     with account_col:
         if st.session_state.user_id:
             if st.button(
-                f"↪ {tr('logout')}",
+                f"{tr('logout')}",
                 use_container_width=True,
             ):
                 st.session_state.user_id = None
@@ -930,7 +1003,7 @@ def render_topbar():
                 st.rerun()
         else:
             if st.button(
-                f"👤 {tr('login')}",
+                f"{tr('login')}",
                 use_container_width=True,
             ):
                 st.session_state.auth_view = "login"
@@ -1055,7 +1128,7 @@ def render_auth():
                 st.rerun()
 
         if st.button(
-            "← " + tr("guest"),
+            tr("guest"),
             use_container_width=True,
         ):
             st.session_state.show_auth = False
@@ -1067,16 +1140,16 @@ def render_auth():
 # ============================================================
 
 def render_mode_selector():
-    st.markdown(f"### ⚙️ {tr('mode')}")
+    st.markdown(f"### {tr('mode')}")
 
     mode = st.radio(
         tr("mode"),
         options=["auto", "pdf", "image", "multimodal"],
         format_func=lambda value: {
-            "auto": f"⚡ {tr('auto_mode')}",
-            "pdf": f"📄 {tr('pdf_mode')}",
-            "image": f"🖼️ {tr('image_mode')}",
-            "multimodal": f"🔗 {tr('multimodal_mode')}",
+            "auto": tr("auto_mode"),
+            "pdf": tr("pdf_mode"),
+            "image": tr("image_mode"),
+            "multimodal": tr("multimodal_mode"),
         }[value],
         index=["auto", "pdf", "image", "multimodal"].index(
             st.session_state.mode
@@ -1097,7 +1170,7 @@ def render_sidebar():
 
         if st.session_state.user_id:
             st.markdown(
-                f"### 👤 {st.session_state.username}"
+                f"### {st.session_state.username}"
             )
 
             st.caption(
@@ -1105,7 +1178,7 @@ def render_sidebar():
             )
 
             if st.button(
-                f"＋ {tr('new_chat')}",
+                f"+ {tr('new_chat')}",
                 use_container_width=True,
             ):
                 st.session_state.active_conversation_id = None
@@ -1115,7 +1188,7 @@ def render_sidebar():
             st.divider()
 
             st.markdown(
-                f"### 🕘 {tr('history')}"
+                f"### {tr('history')}"
             )
 
             conversations = get_conversations(
@@ -1154,7 +1227,7 @@ def render_sidebar():
             st.divider()
 
             if st.button(
-                f"🗑️ {tr('delete_history')}",
+                tr("delete_history"),
                 use_container_width=True,
             ):
                 delete_history(
@@ -1171,7 +1244,7 @@ def render_sidebar():
 
         else:
             st.markdown(
-                f"### 👤 {tr('guest_label')}"
+                f"### {tr('guest_label')}"
             )
 
             st.caption(
@@ -1179,7 +1252,7 @@ def render_sidebar():
             )
 
             if st.button(
-                f"🔐 {tr('login')}",
+                tr("login"),
                 use_container_width=True,
             ):
                 st.session_state.auth_view = "login"
@@ -1855,7 +1928,7 @@ if st.session_state.user_id:
         f"""
         <div class="card">
             <span class="status-pill">
-                👤 {st.session_state.username}
+                {st.session_state.username}
             </span>
             <span class="small-muted">
                 &nbsp; {tr("login_to_save")}
@@ -1866,7 +1939,7 @@ if st.session_state.user_id:
     )
 else:
     st.info(
-        f"👤 {tr('guest_not_saved')}"
+        f"{tr('guest_not_saved')}"
     )
 
 def afficher_pdf(pdf_file, hauteur=700):
@@ -1907,7 +1980,7 @@ pdf_col, image_col = st.columns(
 
 with pdf_col:
     st.markdown(
-        f"### 📄 {tr('pdf')}"
+        f'<h3><span class="section-icon"><i class="fa-regular fa-file-pdf"></i></span>{tr("pdf")}</h3>'
     )
 
     uploaded_files = st.file_uploader(
@@ -1921,11 +1994,11 @@ with pdf_col:
 # ============================================================
 
 if uploaded_files:
-    st.markdown("### 📖 Lecture des documents")
+    st.markdown('<h3><span class="section-icon"><i class="fa-solid fa-book-open"></i></span>Lecture des documents</h3>', unsafe_allow_html=True)
 
     for pdf_file in uploaded_files:
         with st.expander(
-            f"📄 {pdf_file.name}",
+            f"{pdf_file.name}",
             expanded=True,
         ):
             afficher_pdf(pdf_file)
@@ -1935,7 +2008,7 @@ if uploaded_files:
 # ============================================================
 
 if uploaded_files:
-    st.markdown("### 🔎 Recherche dans les PDF")
+    st.markdown('<h3><span class="section-icon"><i class="fa-solid fa-magnifying-glass"></i></span>Recherche dans les PDF</h3>', unsafe_allow_html=True)
 
     search_col, search_button_col = st.columns([5, 1])
 
@@ -1949,7 +2022,7 @@ if uploaded_files:
     with search_button_col:
         st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
         search_clicked = st.button(
-            "🔍",
+            "Rechercher",
             use_container_width=True,
             key="pdf_search_button",
         )
@@ -1972,7 +2045,7 @@ if uploaded_files:
 
         for resultat in st.session_state.pdf_search_results:
             with st.expander(
-                f"📄 {resultat['source']} — page {resultat['page']}",
+                f"{resultat['source']} — page {resultat['page']}",
                 expanded=False,
             ):
                 st.write(resultat["extrait"])
@@ -1981,7 +2054,7 @@ if uploaded_files:
 
 with image_col:
     st.markdown(
-        f"### 🖼️ {tr('image')}"
+        f'<h3><span class="section-icon"><i class="fa-regular fa-image"></i></span>{tr("image")}</h3>'
     )
 
     uploaded_image = st.file_uploader(
@@ -2024,7 +2097,7 @@ else:
 
 if uploaded_files:
     if st.button(
-        f"🔨 {tr('build_rag')}",
+        f"{tr('build_rag')}",
         use_container_width=True,
     ):
         with st.spinner(tr("processing")):
@@ -2047,7 +2120,7 @@ if uploaded_files:
             st.session_state.last_sources = []
 
         st.success(
-            f"✅ {tr('rag_ready')} — "
+            f"{tr('rag_ready')} — "
             f"{len(chunks)} chunks."
         )
 
@@ -2084,7 +2157,7 @@ if uploaded_image:
     )
 
     if st.button(
-        f"🔍 {tr('analyze_image')}",
+        tr("analyze_image"),
         use_container_width=True,
     ):
         with st.spinner(tr("analyzing")):
@@ -2098,7 +2171,7 @@ if uploaded_image:
                 st.session_state.image_name = uploaded_image.name
 
                 st.success(
-                    f"✅ {tr('image_success')}"
+                    tr("image_success")
                 )
 
             except Exception as error:
@@ -2109,7 +2182,7 @@ if uploaded_image:
 
 if st.session_state.description_image:
     with st.expander(
-        f"👁️ {tr('image_understanding')}",
+        tr("image_understanding"),
         expanded=False,
     ):
         st.write(
@@ -2124,7 +2197,7 @@ if st.session_state.description_image:
 st.divider()
 
 st.markdown(
-    f"### 💬 {tr('assistant')}"
+    f'<h3><span class="section-icon"><i class="fa-solid fa-comments"></i></span>{tr("assistant")}</h3>'
 )
 
 for message in st.session_state.messages:
@@ -2143,7 +2216,7 @@ for message in st.session_state.messages:
         st.markdown(
             f"""
             <div class="bot-message">
-                <strong>🤖 {tr("assistant")}</strong><br>
+                <strong>{tr("assistant")}</strong><br>
                 {message["content"]}
             </div>
             """,
@@ -2159,7 +2232,7 @@ question = st.text_input(
 
 
 if st.button(
-    f"➤ {tr('send')}",
+    tr("send"),
     use_container_width=True,
     type="primary",
 ):
@@ -2270,10 +2343,10 @@ if st.button(
 
 if st.session_state.last_sources:
     st.markdown(
-        f"### 📚 {tr('sources')}"
+        f"### {tr('sources')}"
     )
 
     for source, page in st.session_state.last_sources:
         st.write(
-            f"📄 {source} — page {page}"
+            f"{source} — page {page}"
         )

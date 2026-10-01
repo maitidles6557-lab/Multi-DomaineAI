@@ -943,64 +943,138 @@ def apply_theme():
         }}
 
         /* --------------------------------------------------------
-           Streamlit native buttons: force them to follow the
-           currently selected application theme.
+           STREAMLIT NATIVE BUTTONS — THEME AWARE
+           Use concrete theme values here (not only CSS variables)
+           because some Streamlit/BaseWeb components render outside
+           the .stApp variable scope.
            -------------------------------------------------------- */
-        .stButton > button,
-        [data-testid="stBaseButton-secondary"],
-        [data-testid="stBaseButton-primary"] {{
-            min-height: 42px;
+
+        div[data-testid="stButton"] button,
+        div[data-testid="stDownloadButton"] button,
+        button[data-testid="stBaseButton-secondary"],
+        button[data-testid="stBaseButton-primary"],
+        button[kind="secondary"],
+        button[kind="tertiary"] {{
+            min-height: 42px !important;
             border-radius: 11px !important;
-            border: 1px solid var(--theme-border) !important;
-            color: var(--theme-text) !important;
-            background: var(--theme-surface) !important;
+            border: 1px solid {border} !important;
+            color: {text} !important;
+            background-color: {surface} !important;
+            background: {surface} !important;
             background-image: none !important;
-            box-shadow: none !important;
-            font-weight: 650;
+            box-shadow: 0 4px 14px {shadow} !important;
+            font-weight: 650 !important;
+            opacity: 1 !important;
             transition: transform .18s ease,
                         border-color .18s ease,
-                        background .18s ease,
+                        background-color .18s ease,
                         color .18s ease,
                         box-shadow .18s ease;
         }}
 
-        .stButton > button:hover,
-        [data-testid="stBaseButton-secondary"]:hover,
-        [data-testid="stBaseButton-primary"]:hover {{
+        div[data-testid="stButton"] button:hover,
+        div[data-testid="stDownloadButton"] button:hover,
+        button[data-testid="stBaseButton-secondary"]:hover,
+        button[data-testid="stBaseButton-primary"]:hover,
+        button[kind="secondary"]:hover,
+        button[kind="tertiary"]:hover {{
             transform: translateY(-1px);
-            border-color: var(--accent) !important;
-            background: var(--theme-surface-2) !important;
-            color: var(--theme-text) !important;
-            box-shadow: 0 8px 20px rgba(79,70,229,.16) !important;
+            border-color: {accent} !important;
+            color: {text} !important;
+            background-color: {surface_2} !important;
+            background: {surface_2} !important;
+            box-shadow: 0 8px 20px {shadow} !important;
         }}
 
-        .stButton > button[kind="primary"],
-        [data-testid="stBaseButton-primary"] {{
-            background: linear-gradient(135deg, var(--accent), var(--accent-2)) !important;
+        /* Primary actions keep the active theme accent. */
+        div[data-testid="stButton"] button[kind="primary"],
+        button[data-testid="stBaseButton-primary"],
+        button[kind="primary"] {{
+            background: linear-gradient(135deg, {accent}, {accent_2}) !important;
+            background-color: {accent} !important;
             color: #FFFFFF !important;
-            border: 0 !important;
+            border: 1px solid {accent} !important;
         }}
 
-        .stButton > button[kind="primary"]:hover,
-        [data-testid="stBaseButton-primary"]:hover {{
+        div[data-testid="stButton"] button[kind="primary"]:hover,
+        button[data-testid="stBaseButton-primary"]:hover,
+        button[kind="primary"]:hover {{
+            background: linear-gradient(135deg, {accent_2}, {accent}) !important;
+            background-color: {accent_2} !important;
             color: #FFFFFF !important;
-            background: linear-gradient(135deg, var(--accent-2), var(--accent)) !important;
         }}
 
-        /* Upload button inside Streamlit's file uploader. */
+        /* File uploader itself. */
+        [data-testid="stFileUploader"] section {{
+            background: {surface} !important;
+            background-color: {surface} !important;
+            border: 1px dashed {border} !important;
+            border-radius: 14px !important;
+        }}
+
+        [data-testid="stFileUploader"] section,
+        [data-testid="stFileUploader"] section *,
+        [data-testid="stFileUploaderDropzone"] {{
+            color: {text} !important;
+        }}
+
         [data-testid="stFileUploader"] button,
         [data-testid="stFileUploaderDropzone"] button {{
-            background: var(--theme-surface-2) !important;
-            color: var(--theme-text) !important;
-            border: 1px solid var(--theme-border) !important;
+            background: {surface_2} !important;
+            background-color: {surface_2} !important;
+            color: {text} !important;
+            border: 1px solid {border} !important;
             border-radius: 10px !important;
+            box-shadow: none !important;
         }}
 
         [data-testid="stFileUploader"] button:hover,
         [data-testid="stFileUploaderDropzone"] button:hover {{
-            background: var(--theme-input) !important;
-            color: var(--theme-text) !important;
-            border-color: var(--accent) !important;
+            background: {input_bg} !important;
+            background-color: {input_bg} !important;
+            color: {text} !important;
+            border-color: {accent} !important;
+        }}
+
+        /* Streamlit widget containers inherit the active theme. */
+        [data-testid="stTextInput"] input,
+        [data-testid="stTextArea"] textarea,
+        [data-testid="stNumberInput"] input {{
+            background: {input_bg} !important;
+            background-color: {input_bg} !important;
+            color: {text} !important;
+            border-color: {border} !important;
+        }}
+
+        /* Selectboxes, including the language/theme selectors. */
+        [data-testid="stSelectbox"] [data-baseweb="select"] > div,
+        [data-baseweb="select"] > div {{
+            background: {surface} !important;
+            background-color: {surface} !important;
+            color: {text} !important;
+            border-color: {border} !important;
+            border-radius: 12px !important;
+        }}
+
+        [data-testid="stSelectbox"] [data-baseweb="select"] span,
+        [data-baseweb="select"] span {{
+            color: {text} !important;
+        }}
+
+        [data-baseweb="popover"],
+        [data-baseweb="menu"] {{
+            background: {surface} !important;
+            color: {text} !important;
+        }}
+
+        [role="option"] {{
+            color: {text} !important;
+            background: {surface} !important;
+        }}
+
+        [role="option"]:hover {{
+            color: {text} !important;
+            background: {surface_2} !important;
         }}
 
         .auth-box {{

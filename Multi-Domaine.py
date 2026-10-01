@@ -32,7 +32,6 @@ DB_PATH: str = str(BASE_DIR / "multidomaine.db")
 
 
 def trouver_image_par_mot_cle(mots_cles: List[str]) -> Optional[Path]:
-    """Cherche une image dans assets/ correspondant à des mots-clés précis."""
     if not ASSETS_DIR.exists():
         return None
 
@@ -46,7 +45,6 @@ def trouver_image_par_mot_cle(mots_cles: List[str]) -> Optional[Path]:
 
 
 def encoder_image_base64(path: Optional[Path]) -> Optional[str]:
-    """Encode une image en base64 pour l'intégrer en HTML/CSS."""
     if path and path.exists():
         mime_type = mimetypes.guess_type(path.name)[0] or "image/png"
         encoded = base64.b64encode(path.read_bytes()).decode("utf-8")
@@ -455,30 +453,30 @@ def apply_theme() -> None:
     if st.session_state.theme == "dark":
         background_overlay = "linear-gradient(135deg, rgba(7,11,20,0.92), rgba(15,23,42,0.88))"
         surface = "rgba(15,23,42,0.92)"
-        surface_2 = "rgba(30,41,59,0.78)"
         text = "#F8FAFC"
         muted = "#94A3B8"
         border = "rgba(148,163,184,0.18)"
         accent = "#8B5CF6"
         accent_2 = "#3B82F6"
+        label_color = "#E2E8F0"
     elif st.session_state.theme == "soft":
         background_overlay = "linear-gradient(135deg, rgba(232,240,255,0.65), rgba(243,232,255,0.65))"
         surface = "rgba(255,255,255,0.85)"
-        surface_2 = "rgba(255,255,255,0.70)"
         text = "#1E293B"
         muted = "#64748B"
         border = "rgba(99,102,241,0.18)"
         accent = "#6366F1"
         accent_2 = "#8B5CF6"
+        label_color = "#334155"
     else:
         background_overlay = "linear-gradient(135deg, rgba(246,248,252,0.90), rgba(255,255,255,0.85))"
         surface = "rgba(255,255,255,0.90)"
-        surface_2 = "rgba(241,245,249,0.85)"
         text = "#0F172A"
-        muted = "#64748B"
+        muted = "#475569"
         border = "rgba(148,163,184,0.24)"
         accent = "#4F46E5"
         accent_2 = "#7C3AED"
+        label_color = "#1E293B"
 
     app_background = (
         f"background-image: {background_overlay}, url('{BACKGROUND_IMAGE}');"
@@ -515,6 +513,15 @@ def apply_theme() -> None:
         .stButton > button {{ border-radius: 11px; border: 1px solid {border}; font-weight: 600; transition: all 0.2s ease; }}
         .stButton > button:hover {{ transform: translateY(-2px); border-color: {accent}; box-shadow: 0 8px 20px rgba(99,102,241,0.15); }}
         .stButton > button[kind="primary"] {{ background: linear-gradient(135deg, {accent}, {accent_2}); color: white; border: none; }}
+        
+        /* Ajustements de visibilité des labels de téléversement */
+        label[data-testid="stFileUploaderDropzoneInstructions"] span {{
+            color: {label_color} !important;
+            font-weight: 600 !important;
+        }}
+        p, span, label {{
+            color: {text};
+        }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -885,7 +892,6 @@ def rechercher(
 # ============================================================
 
 def analyser_image_vision(image_bytes: bytes, mime_type: str) -> str:
-    """Analyse l'image chargée via l'API Gemini Vision."""
     try:
         response = gemini_client.models.generate_content(
             model="gemini-2.5-flash",
@@ -900,7 +906,6 @@ def analyser_image_vision(image_bytes: bytes, mime_type: str) -> str:
 
 
 def generer_reponse_llm(prompt: str) -> str:
-    """Génère la réponse finale avec Groq Llama 3."""
     try:
         response = groq_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
@@ -945,7 +950,6 @@ def render_main_content() -> None:
 
     st.divider()
 
-    # Zone de dialogue
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
@@ -955,7 +959,6 @@ def render_main_content() -> None:
         with st.chat_message("user"):
             st.write(prompt)
 
-        # Construction du contexte
         context_parts = []
         sources = []
 
@@ -970,7 +973,7 @@ def render_main_content() -> None:
 
         contexte_global = "\n\n".join(context_parts)
         full_prompt = (
-            f"Réponds en {st.session_state.language} à la question suivante en t'appuyant rigoureusement sur le contexte fournie.\n\n"
+            f"Réponds en {st.session_state.language} à la question suivante en t'appuyant rigoureusement sur le contexte fourni.\n\n"
             f"Contexte:\n{contexte_global}\n\n"
             f"Question: {prompt}"
         )
@@ -984,7 +987,6 @@ def render_main_content() -> None:
 
         st.session_state.messages.append({"role": "assistant", "content": res})
 
-        # Sauvegarde en BDD pour les utilisateurs connectés
         if st.session_state.user_id:
             if not st.session_state.active_conversation_id:
                 conv_id = create_conversation(st.session_state.user_id, prompt[:30])

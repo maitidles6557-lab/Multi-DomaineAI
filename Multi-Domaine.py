@@ -1,86 +1,130 @@
-import base64
-import hashlib
-import hmac
-import io
-import mimetypes
-import os
 import re
-import shutil
-import sqlite3
-import subprocess
-import tempfile
-from datetime import datetime
+import io
+import os
+import base64
+import mimetypes
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+import hmac
+import hashlib
+import sqlite3
+import tempfile
+import subprocess
+import shutil
+from datetime import datetime
 
+import streamlit.components.v1 as components
 import faiss
-from google import genai
-from google.genai import types
-from groq import Groq
-from PIL import Image
 import pymupdf
-from sentence_transformers import SentenceTransformer
 import streamlit as st
 
+from PIL import Image
+from sentence_transformers import SentenceTransformer
+from groq import Groq
+from google import genai
+from google.genai import types
+
+
 # ============================================================
-# CONFIGURATION ET CHARGEMENT DES ASSETS
+# CONFIGURATION
 # ============================================================
-
-BASE_DIR: Path = Path(__file__).resolve().parent
-ASSETS_DIR: Path = BASE_DIR / "assets"
-DB_PATH: str = str(BASE_DIR / "multidomaine.db")
-
-
-def trouver_image_par_mot_cle(mots_cles: List[str]) -> Optional[Path]:
-    if not ASSETS_DIR.exists():
-        return None
-
-    extensions = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
-    for path in ASSETS_DIR.iterdir():
-        if path.is_file() and path.suffix.lower() in extensions:
-            nom_fichier = path.stem.lower()
-            if any(kw in nom_fichier for kw in mots_cles):
-                return path
-    return None
-
-
-def encoder_image_base64(path: Optional[Path]) -> Optional[str]:
-    if path and path.exists():
-        mime_type = mimetypes.guess_type(path.name)[0] or "image/png"
-        encoded = base64.b64encode(path.read_bytes()).decode("utf-8")
-        return f"data:{mime_type};base64,{encoded}"
-    return None
-
-
-BG_PATH = trouver_image_par_mot_cle(["background", "bg", "fond"])
-LOGO_PATH = trouver_image_par_mot_cle(["logo", "icon", "app", "favicon"])
-
-BACKGROUND_IMAGE = encoder_image_base64(BG_PATH)
-LOGO_IMAGE = encoder_image_base64(LOGO_PATH)
 
 st.set_page_config(
     page_title="Multi-DomaineAI",
-    page_icon=str(LOGO_PATH) if (LOGO_PATH and LOGO_PATH.exists()) else "📚",
+    page_icon="📚",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-SYSTEM_TESSERACT = shutil.which("tesseract")
-WINDOWS_TESSERACT = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+BASE_DIR = Path(__file__).resolve().parent
+ASSETS_DIR = BASE_DIR / "assets"
+DB_PATH = str(BASE_DIR / "multidomaine.db")
 
-if SYSTEM_TESSERACT:
-    TESSERACT_CMD = SYSTEM_TESSERACT
-elif os.path.exists(WINDOWS_TESSERACT):
-    TESSERACT_CMD = WINDOWS_TESSERACT
-else:
-    TESSERACT_CMD = "tesseract"
+# Tesseract : compatible Windows + Streamlit Cloud (Linux).
+TESSERACT_CMD = shutil.which("tesseract")
+if not TESSERACT_CMD:
+    windows_tesseract = Path(
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    )
+    if windows_tesseract.exists():
+        TESSERACT_CMD = str(windows_tesseract)
 
+OCR_LANG = os.getenv("OCR_LANG", "fra+ara+eng")
+
+
+def trouver_background():
+    """Trouve automatiquement l'image de background dans assets/."""
+    if not ASSETS_DIR.exists():
+        return None
+
+    extensions = {".png", ".jpg", ".jpeg", ".webp"}
+    images = [
+        path for path in ASSETS_DIR.iterdir()
+        if path.is_file() and path.suffix.lower() in extensions
+    ]
+
+    if not images:
+        return None
+
+    # Priorité aux fichiers dont le nom contient 'background'.
+    images.sort(
+        key=lambda path: (
+            "background" not in path.stem.lower(),
+            path.name.lower(),
+        )
+    )
+
+    return images[0]
+
+
+def encoder_background():
+    """Encode l'image en data URI pour l'utiliser directement dans le CSS."""
+    image_path = trouver_background()
+
+    if image_path is None:
+        return None
+
+    mime_type = mimetypes.guess_type(image_path.name)[0] or "image/png"
+    encoded = base64.b64encode(image_path.read_bytes()).decode("utf-8")
+
+    return f"data:{mime_type};base64,{encoded}"
+
+
+BACKGROUND_IMAGE = encoder_background()
+
+
+def trouver_logo():
+    """Retourne le logo du projet depuis assets/."""
+    candidates = [
+        ASSETS_DIR / "logo.jpg",
+        ASSETS_DIR / "logo.png",
+        ASSETS_DIR / "logo.jpeg",
+        ASSETS_DIR / "logo.webp",
+    ]
+
+    for path in candidates:
+        if path.exists() and path.is_file():
+            return path
+
+    return None
+
+
+def encoder_image(image_path):
+    """Encode une image locale en data URI pour le CSS/HTML."""
+    if image_path is None or not image_path.exists():
+        return None
+
+    mime_type = mimetypes.guess_type(image_path.name)[0] or "image/png"
+    encoded = base64.b64encode(image_path.read_bytes()).decode("utf-8")
+    return f"data:{mime_type};base64,{encoded}"
+
+
+LOGO_IMAGE = encoder_image(trouver_logo())
 
 # ============================================================
-# TRADUCTIONS (FR, EN, AR)
+# TRANSLATIONS
 # ============================================================
 
-TEXT: Dict[str, Dict[str, str]] = {
+TEXT = {
     "fr": {
         "app_name": "Multi-DomaineAI",
         "tagline": "Votre assistant documentaire intelligent",
@@ -110,6 +154,11 @@ TEXT: Dict[str, Dict[str, str]] = {
         "new_chat": "Nouvelle conversation",
         "no_history": "Aucune conversation enregistrée.",
         "theme": "Thème",
+        "mode": "Mode",
+        "auto_mode": "Auto",
+        "pdf_mode": "PDF",
+        "image_mode": "Image",
+        "multimodal_mode": "PDF + Image",
         "light": "Clair",
         "dark": "Sombre",
         "soft": "Soft",
@@ -168,6 +217,11 @@ TEXT: Dict[str, Dict[str, str]] = {
         "new_chat": "New conversation",
         "no_history": "No saved conversations.",
         "theme": "Theme",
+        "mode": "Mode",
+        "auto_mode": "Auto",
+        "pdf_mode": "PDF",
+        "image_mode": "Image",
+        "multimodal_mode": "PDF + Image",
         "light": "Light",
         "dark": "Dark",
         "soft": "Soft",
@@ -226,6 +280,11 @@ TEXT: Dict[str, Dict[str, str]] = {
         "new_chat": "محادثة جديدة",
         "no_history": "لا توجد محادثات محفوظة.",
         "theme": "المظهر",
+        "mode": "الوضع",
+        "auto_mode": "تلقائي",
+        "pdf_mode": "PDF",
+        "image_mode": "صورة",
+        "multimodal_mode": "PDF + صورة",
         "light": "فاتح",
         "dark": "داكن",
         "soft": "ناعم",
@@ -258,9 +317,8 @@ TEXT: Dict[str, Dict[str, str]] = {
 }
 
 
-def tr(key: str) -> str:
-    lang = st.session_state.get("language", "fr")
-    return TEXT.get(lang, TEXT["fr"]).get(key, key)
+def tr(key):
+    return TEXT[st.session_state.language].get(key, key)
 
 
 # ============================================================
@@ -273,15 +331,14 @@ defaults = {
     "user_id": None,
     "username": None,
     "auth_view": "login",
-    "show_auth": False,
     "active_conversation_id": None,
     "messages": [],
     "description_image": None,
     "image_name": None,
     "rag_ready": False,
-    "rag_index": None,
-    "rag_chunks": [],
     "last_sources": [],
+    "mode": "auto",
+    "pdf_search_results": [],
 }
 
 for key, value in defaults.items():
@@ -290,16 +347,16 @@ for key, value in defaults.items():
 
 
 # ============================================================
-# BASE DE DONNÉES SQLITE
+# DATABASE
 # ============================================================
 
-def get_db() -> sqlite3.Connection:
+def get_db():
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
     return connection
 
 
-def init_db() -> None:
+def init_db():
     with get_db() as db:
         db.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -310,6 +367,7 @@ def init_db() -> None:
                 created_at TEXT NOT NULL
             )
         """)
+
         db.execute("""
             CREATE TABLE IF NOT EXISTS conversations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -320,6 +378,7 @@ def init_db() -> None:
                 FOREIGN KEY(user_id) REFERENCES users(id)
             )
         """)
+
         db.execute("""
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -330,10 +389,11 @@ def init_db() -> None:
                 FOREIGN KEY(conversation_id) REFERENCES conversations(id)
             )
         """)
+
         db.commit()
 
 
-def hash_password(password: str, salt: Optional[bytes] = None) -> Tuple[str, str]:
+def hash_password(password, salt=None):
     if salt is None:
         salt = os.urandom(16)
 
@@ -343,102 +403,186 @@ def hash_password(password: str, salt: Optional[bytes] = None) -> Tuple[str, str
         salt,
         310_000,
     )
-    return password_hash.hex(), salt.hex()
+
+    return (
+        password_hash.hex(),
+        salt.hex(),
+    )
 
 
-def verify_password(password: str, stored_hash: str, stored_salt: str) -> bool:
+def verify_password(password, stored_hash, stored_salt):
     salt = bytes.fromhex(stored_salt)
-    calculated_hash, _ = hash_password(password, salt)
-    return hmac.compare_digest(calculated_hash, stored_hash)
+
+    calculated_hash, _ = hash_password(
+        password,
+        salt,
+    )
+
+    return hmac.compare_digest(
+        calculated_hash,
+        stored_hash,
+    )
 
 
-def create_user(username: str, password: str) -> Optional[int]:
+def create_user(username, password):
     password_hash, salt = hash_password(password)
+
     try:
         with get_db() as db:
             cursor = db.execute(
                 """
-                INSERT INTO users (username, password_hash, salt, created_at)
+                INSERT INTO users
+                (username, password_hash, salt, created_at)
                 VALUES (?, ?, ?, ?)
                 """,
-                (username, password_hash, salt, datetime.now().isoformat()),
+                (
+                    username,
+                    password_hash,
+                    salt,
+                    datetime.now().isoformat(),
+                ),
             )
+
             db.commit()
             return cursor.lastrowid
+
     except sqlite3.IntegrityError:
         return None
 
 
-def authenticate_user(username: str, password: str) -> Optional[sqlite3.Row]:
+def authenticate_user(username, password):
     with get_db() as db:
-        user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        user = db.execute(
+            """
+            SELECT *
+            FROM users
+            WHERE username = ?
+            """,
+            (username,),
+        ).fetchone()
 
     if user is None:
         return None
 
-    if verify_password(password, user["password_hash"], user["salt"]):
+    if verify_password(
+        password,
+        user["password_hash"],
+        user["salt"],
+    ):
         return user
 
     return None
 
 
-def create_conversation(user_id: int, title: str) -> int:
+def create_conversation(user_id, title):
     now = datetime.now().isoformat()
+
     with get_db() as db:
         cursor = db.execute(
             """
-            INSERT INTO conversations (user_id, title, created_at, updated_at)
+            INSERT INTO conversations
+            (user_id, title, created_at, updated_at)
             VALUES (?, ?, ?, ?)
             """,
-            (user_id, title, now, now),
+            (
+                user_id,
+                title,
+                now,
+                now,
+            ),
         )
+
         db.commit()
         return cursor.lastrowid
 
 
-def save_message(conversation_id: int, role: str, content: str) -> None:
+def save_message(conversation_id, role, content):
     now = datetime.now().isoformat()
+
     with get_db() as db:
         db.execute(
             """
-            INSERT INTO messages (conversation_id, role, content, created_at)
+            INSERT INTO messages
+            (conversation_id, role, content, created_at)
             VALUES (?, ?, ?, ?)
             """,
-            (conversation_id, role, content, now),
+            (
+                conversation_id,
+                role,
+                content,
+                now,
+            ),
         )
+
         db.execute(
-            "UPDATE conversations SET updated_at = ? WHERE id = ?",
-            (now, conversation_id),
+            """
+            UPDATE conversations
+            SET updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                now,
+                conversation_id,
+            ),
         )
+
         db.commit()
 
 
-def get_conversations(user_id: int) -> List[sqlite3.Row]:
+def get_conversations(user_id):
     with get_db() as db:
         return db.execute(
-            "SELECT * FROM conversations WHERE user_id = ? ORDER BY updated_at DESC",
+            """
+            SELECT *
+            FROM conversations
+            WHERE user_id = ?
+            ORDER BY updated_at DESC
+            """,
             (user_id,),
         ).fetchall()
 
 
-def get_messages(conversation_id: int) -> List[sqlite3.Row]:
+def get_messages(conversation_id):
     with get_db() as db:
         return db.execute(
-            "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY id ASC",
+            """
+            SELECT role, content
+            FROM messages
+            WHERE conversation_id = ?
+            ORDER BY id ASC
+            """,
             (conversation_id,),
         ).fetchall()
 
 
-def delete_history(user_id: int) -> None:
+def delete_history(user_id):
     with get_db() as db:
         conversation_ids = db.execute(
-            "SELECT id FROM conversations WHERE user_id = ?", (user_id,)
+            """
+            SELECT id
+            FROM conversations
+            WHERE user_id = ?
+            """,
+            (user_id,),
         ).fetchall()
 
         for row in conversation_ids:
-            db.execute("DELETE FROM messages WHERE conversation_id = ?", (row["id"],))
+            db.execute(
+                """
+                DELETE FROM messages
+                WHERE conversation_id = ?
+                """,
+                (row["id"],),
+            )
 
-        db.execute("DELETE FROM conversations WHERE user_id = ?", (user_id,))
+        db.execute(
+            """
+            DELETE FROM conversations
+            WHERE user_id = ?
+            """,
+            (user_id,),
+        )
+
         db.commit()
 
 
@@ -446,46 +590,61 @@ init_db()
 
 
 # ============================================================
-# STYLES CSS PERSONNALISÉS ET THÈMES
+# CUSTOM CSS
 # ============================================================
 
-def apply_theme() -> None:
+def apply_theme():
+    """Applique le thème courant avec un background responsive optionnel."""
     if st.session_state.theme == "dark":
-        background_overlay = "linear-gradient(135deg, rgba(7,11,20,0.92), rgba(15,23,42,0.88))"
+        background = "#070B14"
+        background_overlay = (
+            "linear-gradient("
+            "135deg, rgba(7,11,20,0.94), rgba(15,23,42,0.88))"
+        )
         surface = "rgba(15,23,42,0.92)"
+        surface_2 = "rgba(30,41,59,0.78)"
         text = "#F8FAFC"
         muted = "#94A3B8"
         border = "rgba(148,163,184,0.18)"
         accent = "#8B5CF6"
         accent_2 = "#3B82F6"
-        uploader_bg = "rgba(30, 41, 59, 0.7)"
-        uploader_border = "rgba(148, 163, 184, 0.3)"
+
     elif st.session_state.theme == "soft":
-        background_overlay = "linear-gradient(135deg, rgba(220, 226, 238, 0.85), rgba(235, 238, 245, 0.85))"
-        surface = "rgba(255, 255, 255, 0.85)"
+        # Deux couleurs principales pour le mode Soft.
+        background = "#E8F0FF"
+        background_overlay = (
+            "linear-gradient("
+            "135deg, rgba(232,240,255,0.90), rgba(243,232,255,0.90))"
+        )
+        surface = "rgba(255,255,255,0.78)"
+        surface_2 = "rgba(255,255,255,0.62)"
         text = "#1E293B"
-        muted = "#475569"
-        border = "rgba(99, 102, 241, 0.2)"
+        muted = "#64748B"
+        border = "rgba(99,102,241,0.18)"
         accent = "#6366F1"
         accent_2 = "#8B5CF6"
-        uploader_bg = "rgba(255, 255, 255, 0.75)"
-        uploader_border = "rgba(99, 102, 241, 0.3)"
+
     else:
-        background_overlay = "linear-gradient(135deg, rgba(246,248,252,0.90), rgba(255,255,255,0.85))"
-        surface = "rgba(255,255,255,0.90)"
+        background = "#F6F8FC"
+        background_overlay = (
+            "linear-gradient("
+            "135deg, rgba(246,248,252,0.92), rgba(255,255,255,0.86))"
+        )
+        surface = "rgba(255,255,255,0.88)"
+        surface_2 = "rgba(241,245,249,0.82)"
         text = "#0F172A"
-        muted = "#475569"
+        muted = "#64748B"
         border = "rgba(148,163,184,0.24)"
         accent = "#4F46E5"
         accent_2 = "#7C3AED"
-        uploader_bg = "rgba(241, 245, 249, 0.8)"
-        uploader_border = "rgba(203, 213, 225, 0.8)"
 
-    app_background = (
-        f"background-image: {background_overlay}, url('{BACKGROUND_IMAGE}');"
-        if BACKGROUND_IMAGE
-        else f"background: {background_overlay};"
-    )
+    if BACKGROUND_IMAGE:
+        app_background = (
+            f"background-image: {background_overlay}, "
+            f"url('{BACKGROUND_IMAGE}');"
+        )
+    else:
+        app_background = f"background: {background_overlay};"
 
     direction = "rtl" if st.session_state.language == "ar" else "ltr"
     text_align = "right" if st.session_state.language == "ar" else "left"
@@ -494,6 +653,7 @@ def apply_theme() -> None:
         f"""
         <style>
         .stApp {{
+            background: {background};
             {app_background}
             background-size: cover;
             background-position: center center;
@@ -502,76 +662,189 @@ def apply_theme() -> None:
             color: {text};
             min-height: 100vh;
         }}
-        [data-testid="stHeader"] {{ background: transparent; }}
+
+        [data-testid="stHeader"] {{
+            background: transparent;
+        }}
+
         [data-testid="stSidebar"] {{
             background: {surface};
             border-right: 1px solid {border};
             backdrop-filter: blur(14px);
             -webkit-backdrop-filter: blur(14px);
         }}
-        .brand {{ font-size: 20px; font-weight: 750; color: {text}; white-space: nowrap; }}
-        .brand-sub {{ font-size: 13px; color: {muted} !important; margin-top: 2px; font-weight: 500; }}
-        .card {{ background: {surface}; border: 1px solid {border}; border-radius: 18px; padding: 18px; margin-bottom: 18px; direction: {direction}; text-align: {text_align}; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }}
-        .auth-box {{ max-width: 470px; margin: 40px auto; padding: 28px; background: {surface}; border: 1px solid {border}; border-radius: 20px; box-shadow: 0 15px 45px rgba(15,23,42,0.08); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); direction: {direction}; }}
-        
-        /* Boutons généraux */
+
+        .topbar {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 14px 18px;
+            margin-bottom: 28px;
+            background: {surface};
+            border: 1px solid {border};
+            border-radius: 18px;
+            box-shadow: 0 8px 30px rgba(15,23,42,0.05);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            direction: ltr;
+        }}
+
+        .brand {{
+            font-size: 19px;
+            font-weight: 750;
+            color: {text};
+            white-space: nowrap;
+        }}
+
+        .brand-sub {{
+            font-size: 12px;
+            color: {muted};
+            margin-top: 2px;
+        }}
+
+        .hero {{
+            text-align: center;
+            margin: 10px auto 30px auto;
+            max-width: 760px;
+            direction: {direction};
+        }}
+
+        .hero-title {{
+            font-size: clamp(30px, 5vw, 48px);
+            font-weight: 800;
+            letter-spacing: -1.5px;
+            color: {text};
+            margin-bottom: 8px;
+        }}
+
+        .hero-subtitle {{
+            font-size: 15px;
+            color: {muted};
+        }}
+
+        .card {{
+            background: {surface};
+            border: 1px solid {border};
+            border-radius: 18px;
+            padding: 20px;
+            margin-bottom: 18px;
+            direction: {direction};
+            text-align: {text_align};
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }}
+
+        .bot-message {{
+            background: {surface};
+            border: 1px solid {border};
+            border-radius: 16px;
+            padding: 18px;
+            margin: 10px 0 18px 0;
+            color: {text};
+            line-height: 1.75;
+            direction: {direction};
+            text-align: {text_align};
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }}
+
+        .user-message {{
+            background: {surface_2};
+            border: 1px solid {border};
+            border-radius: 16px;
+            padding: 14px 16px;
+            margin: 10px 0;
+            color: {text};
+            direction: {direction};
+            text-align: {text_align};
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }}
+
+        .small-muted {{
+            color: {muted};
+            font-size: 13px;
+        }}
+
+        .status-pill {{
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: {surface_2};
+            border: 1px solid {border};
+            color: {muted};
+            font-size: 12px;
+        }}
+
         .stButton > button {{
             border-radius: 11px;
             border: 1px solid {border};
-            background-color: {surface};
-            color: {text};
             font-weight: 600;
             transition: all 0.2s ease;
         }}
+
         .stButton > button:hover {{
             transform: translateY(-2px);
             border-color: {accent};
-            box-shadow: 0 8px 20px rgba(99,102,241,0.15);
+            box-shadow: 0 9px 22px rgba(99,102,241,0.16);
         }}
+
         .stButton > button[kind="primary"] {{
             background: linear-gradient(135deg, {accent}, {accent_2});
-            color: white !important;
+            color: white;
             border: none;
         }}
 
-        /* Style spécifique pour les zones d'importation de fichiers (File Uploader) */
-        [data-testid="stFileUploader"] {{
-            background-color: {uploader_bg};
-            border: 1px dashed {uploader_border};
-            border-radius: 14px;
-            padding: 12px;
-        }}
-        [data-testid="stFileUploader"] section {{
-            background-color: transparent !important;
-        }}
-        [data-testid="stFileUploader"] span, 
-        [data-testid="stFileUploader"] p, 
-        [data-testid="stFileUploader"] small,
-        [data-testid="stFileUploader"] label {{
-            color: {text} !important;
-        }}
-        [data-testid="stFileUploader"] button {{
-            background-color: {surface} !important;
-            color: {text} !important;
-            border: 1px solid {border} !important;
+        .stButton > button[kind="primary"]:hover {{
+            box-shadow: 0 12px 26px rgba(99,102,241,0.28);
         }}
 
-        /* Style pour la zone de saisie du Chat et son conteneur bas */
-        [data-testid="stBottom"], [data-testid="stChatInputContainer"] {{
-            background-color: transparent !important;
-            background: transparent !important;
-        }}
-        [data-testid="stChatInput"] {{
-            background-color: {surface} !important;
-            border: 1px solid {border} !important;
-            border-radius: 14px;
-        }}
-        [data-testid="stChatInput"] textarea {{
-            color: {text} !important;
+        .stTextInput input,
+        .stTextInput textarea {{
+            border-radius: 11px !important;
         }}
 
-        p, span, label, h1, h2, h3, h4 {{
-            color: {text};
+        .auth-box {{
+            max-width: 470px;
+            margin: 45px auto;
+            padding: 28px;
+            background: {surface};
+            border: 1px solid {border};
+            border-radius: 20px;
+            box-shadow: 0 15px 45px rgba(15,23,42,0.08);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            direction: {direction};
+        }}
+
+        @media (max-width: 900px) {{
+            .topbar {{
+                gap: 10px;
+                padding: 12px;
+            }}
+
+            .brand {{
+                font-size: 16px;
+            }}
+        }}
+
+        @media (max-width: 640px) {{
+            .hero {{
+                margin-top: 4px;
+                margin-bottom: 20px;
+            }}
+
+            .hero-title {{
+                font-size: 32px;
+            }}
+
+            .card,
+            .bot-message,
+            .user-message {{
+                border-radius: 14px;
+                padding: 15px;
+            }}
         }}
         </style>
         """,
@@ -580,10 +853,10 @@ def apply_theme() -> None:
 
 
 # ============================================================
-# BARRE SUPÉRIEURE AVEC LOGO ET SÉLECTEURS
+# TOP BAR
 # ============================================================
 
-def render_topbar() -> None:
+def render_topbar():
     left, lang_col, theme_col, account_col = st.columns(
         [4.2, 1.6, 1.8, 1.8],
         vertical_alignment="center",
@@ -591,37 +864,38 @@ def render_topbar() -> None:
 
     with left:
         if LOGO_IMAGE:
-            st.markdown(
-                f"""
-                <div style="display: flex; align-items: center; gap: 14px;">
-                    <img src="{LOGO_IMAGE}" style="height: 48px; width: auto; max-width: 150px; object-fit: contain; border-radius: 8px;">
-                    <div>
-                        <div class="brand">{tr("app_name")}</div>
-                        <div class="brand-sub">{tr("tagline")}</div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+            logo_html = (
+                f'<img class="brand-logo" src="{LOGO_IMAGE}" alt="logo">'
             )
         else:
-            st.markdown(
-                f"""
+            logo_html = '<div class="brand-logo-fallback">MD</div>'
+
+        st.markdown(
+            f"""
+            <div class="brand-wrap">
+                {logo_html}
                 <div class="brand">
-                    📚 {tr("app_name")}
+                    {tr("app_name")}
                     <div class="brand-sub">{tr("tagline")}</div>
                 </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     with lang_col:
         language = st.selectbox(
             tr("language"),
             options=["fr", "en", "ar"],
-            format_func=lambda x: {"fr": "Français", "en": "English", "ar": "العربية"}[x],
+            format_func=lambda x: {
+                "fr": "Français",
+                "en": "English",
+                "ar": "العربية",
+            }[x],
             key="language_selector",
             label_visibility="collapsed",
         )
+
         if language != st.session_state.language:
             st.session_state.language = language
             st.rerun()
@@ -633,54 +907,79 @@ def render_topbar() -> None:
             format_func=lambda x: {
                 "light": f"☀️ {tr('light')}",
                 "dark": f"🌙 {tr('dark')}",
-                "soft": f"🪶 {tr('soft')}",
+                "soft": f"◇ {tr('soft')}",
             }[x],
             key="theme_selector",
             label_visibility="collapsed",
         )
+
         if theme != st.session_state.theme:
             st.session_state.theme = theme
             st.rerun()
 
     with account_col:
         if st.session_state.user_id:
-            if st.button(f"↪ {tr('logout')}", use_container_width=True):
+            if st.button(
+                f"↪ {tr('logout')}",
+                use_container_width=True,
+            ):
                 st.session_state.user_id = None
                 st.session_state.username = None
                 st.session_state.active_conversation_id = None
                 st.session_state.messages = []
                 st.rerun()
         else:
-            if st.button(f"👤 {tr('login')}", use_container_width=True):
+            if st.button(
+                f"👤 {tr('login')}",
+                use_container_width=True,
+            ):
                 st.session_state.auth_view = "login"
                 st.session_state.show_auth = True
                 st.rerun()
 
 
 # ============================================================
-# ÉCRAN D'AUTHENTIFICATION
+# AUTHENTICATION
 # ============================================================
 
-def render_auth() -> None:
+def render_auth():
     st.markdown(
         f"""
         <div class="auth-box">
             <h2 style="margin-bottom:6px;">🔐 {tr(st.session_state.auth_view)}</h2>
-            <div style="color: gray; font-size: 13px;">{tr("login_to_save")}</div>
+            <div class="small-muted">
+                {tr("login_to_save")}
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    _, col2, _ = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1, 2, 1])
 
     with col2:
         if st.session_state.auth_view == "login":
-            username = st.text_input(tr("username"), key="login_username")
-            password = st.text_input(tr("password"), type="password", key="login_password")
+            username = st.text_input(
+                tr("username"),
+                key="login_username",
+            )
 
-            if st.button(tr("login_button"), use_container_width=True, type="primary"):
-                user = authenticate_user(username.strip(), password)
+            password = st.text_input(
+                tr("password"),
+                type="password",
+                key="login_password",
+            )
+
+            if st.button(
+                tr("login_button"),
+                use_container_width=True,
+                type="primary",
+            ):
+                user = authenticate_user(
+                    username.strip(),
+                    password,
+                )
+
                 if user:
                     st.session_state.user_id = user["id"]
                     st.session_state.username = user["username"]
@@ -692,24 +991,51 @@ def render_auth() -> None:
                 else:
                     st.error(tr("invalid_login"))
 
-            if st.button(tr("register"), use_container_width=True):
+            if st.button(
+                tr("register"),
+                use_container_width=True,
+            ):
                 st.session_state.auth_view = "register"
                 st.rerun()
 
         else:
-            username = st.text_input(tr("username"), key="register_username")
-            password = st.text_input(tr("password"), type="password", key="register_password")
-            confirm = st.text_input(tr("confirm_password"), type="password", key="register_confirm")
+            username = st.text_input(
+                tr("username"),
+                key="register_username",
+            )
 
-            if st.button(tr("register_button"), use_container_width=True, type="primary"):
+            password = st.text_input(
+                tr("password"),
+                type="password",
+                key="register_password",
+            )
+
+            confirm = st.text_input(
+                tr("confirm_password"),
+                type="password",
+                key="register_confirm",
+            )
+
+            if st.button(
+                tr("register_button"),
+                use_container_width=True,
+                type="primary",
+            ):
                 if len(username.strip()) < 3:
                     st.error(tr("username_short"))
+
                 elif len(password) < 8:
                     st.error(tr("password_short"))
+
                 elif password != confirm:
                     st.error(tr("password_mismatch"))
+
                 else:
-                    user_id = create_user(username.strip(), password)
+                    user_id = create_user(
+                        username.strip(),
+                        password,
+                    )
+
                     if user_id is None:
                         st.error(tr("user_exists"))
                     else:
@@ -721,172 +1047,412 @@ def render_auth() -> None:
                         st.success(tr("register_success"))
                         st.rerun()
 
-            if st.button(tr("login"), use_container_width=True):
+            if st.button(
+                tr("login"),
+                use_container_width=True,
+            ):
                 st.session_state.auth_view = "login"
                 st.rerun()
 
-        if st.button("← " + tr("guest"), use_container_width=True):
+        if st.button(
+            "← " + tr("guest"),
+            use_container_width=True,
+        ):
             st.session_state.show_auth = False
             st.rerun()
 
 
 # ============================================================
-# MENU LATÉRAL (SIDEBAR)
+# SIDEBAR / HISTORY
 # ============================================================
 
-def render_sidebar() -> None:
+def render_mode_selector():
+    st.markdown(f"### ⚙️ {tr('mode')}")
+
+    mode = st.radio(
+        tr("mode"),
+        options=["auto", "pdf", "image", "multimodal"],
+        format_func=lambda value: {
+            "auto": f"⚡ {tr('auto_mode')}",
+            "pdf": f"📄 {tr('pdf_mode')}",
+            "image": f"🖼️ {tr('image_mode')}",
+            "multimodal": f"🔗 {tr('multimodal_mode')}",
+        }[value],
+        index=["auto", "pdf", "image", "multimodal"].index(
+            st.session_state.mode
+        ),
+        key="mode_selector",
+        label_visibility="collapsed",
+    )
+
+    if mode != st.session_state.mode:
+        st.session_state.mode = mode
+        st.rerun()
+
+
+def render_sidebar():
     with st.sidebar:
-        if LOGO_IMAGE:
-            st.markdown(
-                f"""
-                <div style="text-align: center; margin-bottom: 20px;">
-                    <img src="{LOGO_IMAGE}" style="max-height: 55px; width: auto; border-radius: 8px;">
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+        render_mode_selector()
+        st.divider()
 
         if st.session_state.user_id:
-            st.markdown(f"### 👤 {st.session_state.username}")
-            st.caption(tr("login_to_save"))
+            st.markdown(
+                f"### 👤 {st.session_state.username}"
+            )
 
-            if st.button(f"＋ {tr('new_chat')}", use_container_width=True):
+            st.caption(
+                tr("login_to_save")
+            )
+
+            if st.button(
+                f"＋ {tr('new_chat')}",
+                use_container_width=True,
+            ):
                 st.session_state.active_conversation_id = None
                 st.session_state.messages = []
                 st.rerun()
 
             st.divider()
-            st.markdown(f"### 🕘 {tr('history')}")
 
-            conversations = get_conversations(st.session_state.user_id)
+            st.markdown(
+                f"### 🕘 {tr('history')}"
+            )
+
+            conversations = get_conversations(
+                st.session_state.user_id
+            )
+
             if not conversations:
-                st.caption(tr("no_history"))
+                st.caption(
+                    tr("no_history")
+                )
 
             for conversation in conversations:
-                title = conversation["title"][:30]
-                if st.button(title, key=f"conv_{conversation['id']}", use_container_width=True):
+                title = conversation["title"][:34]
+
+                if st.button(
+                    title,
+                    key=f"conv_{conversation['id']}",
+                    use_container_width=True,
+                ):
                     st.session_state.active_conversation_id = conversation["id"]
-                    rows = get_messages(conversation["id"])
+
+                    rows = get_messages(
+                        conversation["id"]
+                    )
+
                     st.session_state.messages = [
-                        {"role": row["role"], "content": row["content"]} for row in rows
+                        {
+                            "role": row["role"],
+                            "content": row["content"],
+                        }
+                        for row in rows
                     ]
+
                     st.rerun()
 
             st.divider()
-            if st.button(f"🗑️ {tr('delete_history')}", use_container_width=True):
-                delete_history(st.session_state.user_id)
+
+            if st.button(
+                f"🗑️ {tr('delete_history')}",
+                use_container_width=True,
+            ):
+                delete_history(
+                    st.session_state.user_id
+                )
+
                 st.session_state.active_conversation_id = None
                 st.session_state.messages = []
-                st.success(tr("history_deleted"))
+
+                st.success(
+                    tr("history_deleted")
+                )
                 st.rerun()
 
         else:
-            st.markdown(f"### 👤 {tr('guest_label')}")
-            st.caption(tr("guest_not_saved"))
+            st.markdown(
+                f"### 👤 {tr('guest_label')}"
+            )
 
-            if st.button(f"🔐 {tr('login')}", use_container_width=True):
+            st.caption(
+                tr("guest_not_saved")
+            )
+
+            if st.button(
+                f"🔐 {tr('login')}",
+                use_container_width=True,
+            ):
                 st.session_state.auth_view = "login"
                 st.session_state.show_auth = True
                 st.rerun()
 
 
 # ============================================================
-# MODÈLES & API CLIENTS
+# LOAD EMBEDDING MODEL
 # ============================================================
 
 @st.cache_resource
-def charger_modele() -> SentenceTransformer:
-    return SentenceTransformer("BAAI/bge-m3")
+def charger_modele():
+    return SentenceTransformer(
+        "BAAI/bge-m3"
+    )
+
 
 modele_embedding = charger_modele()
 
 
+# ============================================================
+# API CLIENTS
+# ============================================================
+
+def lire_secret(nom):
+    """Lit un secret Streamlit, puis retombe sur une variable d'environnement."""
+    try:
+        valeur = st.secrets.get(nom)
+    except Exception:
+        valeur = None
+
+    return valeur or os.getenv(nom)
+
+
 @st.cache_resource
-def charger_clients() -> Tuple[Groq, genai.Client]:
-    groq_client = Groq(api_key=st.secrets.get("GROQ_API_KEY", ""))
-    gemini_client = genai.Client(api_key=st.secrets.get("GEMINI_API_KEY", ""))
+def charger_clients():
+    groq_key = lire_secret("GROQ_API_KEY")
+    gemini_key = lire_secret("GEMINI_API_KEY")
+
+    if not groq_key:
+        raise RuntimeError(
+            "GROQ_API_KEY est manquante dans les secrets Streamlit."
+        )
+
+    if not gemini_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY est manquante dans les secrets Streamlit."
+        )
+
+    groq_client = Groq(api_key=groq_key)
+    gemini_client = genai.Client(api_key=gemini_key)
+
     return groq_client, gemini_client
+
 
 groq_client, gemini_client = charger_clients()
 
 
 # ============================================================
-# OCR & EXTRACTION PDF
+# OCR
 # ============================================================
 
-def faire_ocr(image: Image.Image, lang: str = "fra+ara+eng") -> str:
+def faire_ocr(image, lang=None):
+    if not TESSERACT_CMD:
+        raise RuntimeError(
+            "Tesseract OCR est introuvable. "
+            "Vérifiez packages.txt sur Streamlit Cloud."
+        )
+
+    lang = lang or OCR_LANG
+
     with tempfile.TemporaryDirectory() as temp_dir:
-        image_path = os.path.join(temp_dir, "page.png")
-        output_base = os.path.join(temp_dir, "ocr")
-        image.save(image_path, format="PNG")
+        image_path = os.path.join(
+            temp_dir,
+            "page.png",
+        )
 
-        try:
-            subprocess.run(
-                [TESSERACT_CMD, image_path, output_base, "-l", lang, "--psm", "6"],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            with open(output_base + ".txt", "r", encoding="utf-8") as file:
-                return file.read().strip()
-        except Exception:
-            return ""
+        output_base = os.path.join(
+            temp_dir,
+            "ocr",
+        )
+
+        image.save(
+            image_path,
+            format="PNG",
+        )
+
+        subprocess.run(
+            [
+                TESSERACT_CMD,
+                image_path,
+                output_base,
+                "-l",
+                lang,
+                "--psm",
+                "6",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        with open(
+            output_base + ".txt",
+            "r",
+            encoding="utf-8",
+        ) as file:
+            return file.read().strip()
 
 
-def extraire_texte_pdf(pdf_bytes: bytes, seuil: int = 100, dpi: int = 300) -> List[Dict[str, Any]]:
-    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+@st.cache_data(show_spinner=False)
+def extraire_texte_pdf(pdf_bytes, seuil=100, dpi=300):
+    doc = pymupdf.open(
+        stream=pdf_bytes,
+        filetype="pdf",
+    )
+
     pages = []
 
     for i, page in enumerate(doc):
         texte = page.get_text("text").strip()
-        if len(texte) < seuil:
-            pix = page.get_pixmap(dpi=dpi, alpha=False)
-            image = Image.open(io.BytesIO(pix.tobytes("png")))
-            texte = faire_ocr(image)
 
-        pages.append({"page": i + 1, "texte": texte})
+        if len(texte) < seuil:
+            pix = page.get_pixmap(
+                dpi=dpi,
+                alpha=False,
+            )
+
+            image = Image.open(
+                io.BytesIO(
+                    pix.tobytes("png")
+                )
+            )
+
+            try:
+                texte = faire_ocr(image)
+            except Exception:
+                # Le texte natif reste prioritaire.
+                texte = texte or ""
+
+        pages.append(
+            {
+                "page": i + 1,
+                "texte": texte,
+            }
+        )
 
     doc.close()
     return pages
 
 
-def nettoyer_texte(texte: str) -> str:
-    return re.sub(r"\s+", " ", texte).strip()
+def rechercher_dans_pdf(uploaded_files, recherche):
+    """Recherche exacte, insensible à la casse, dans les pages PDF."""
+    resultats = []
+    recherche = recherche.strip().lower()
+
+    if not recherche:
+        return resultats
+
+    for fichier in uploaded_files:
+        pages = extraire_texte_pdf(fichier.getvalue())
+
+        for page in pages:
+            texte = page["texte"] or ""
+            texte_lower = texte.lower()
+            position = texte_lower.find(recherche)
+
+            if position == -1:
+                continue
+
+            debut = max(0, position - 150)
+            fin = min(
+                len(texte),
+                position + len(recherche) + 250,
+            )
+
+            extrait = texte[debut:fin]
+
+            if debut > 0:
+                extrait = "..." + extrait
+            if fin < len(texte):
+                extrait += "..."
+
+            resultats.append({
+                "source": fichier.name,
+                "page": page["page"],
+                "extrait": extrait,
+            })
+
+    return resultats
 
 
-def decouper_texte(texte: str, taille: int = 900, chevauchement: int = 150) -> List[str]:
+# ============================================================
+# CLEANING + CHUNKING
+# ============================================================
+
+def nettoyer_texte(texte):
+    texte = re.sub(
+        r"\s+",
+        " ",
+        texte,
+    )
+
+    return texte.strip()
+
+
+def decouper_texte(
+    texte,
+    taille=900,
+    chevauchement=150,
+):
     morceaux = []
     debut = 0
+
     while debut < len(texte):
-        fin = min(debut + taille, len(texte))
+        fin = min(
+            debut + taille,
+            len(texte),
+        )
+
         if fin < len(texte):
-            espace = texte.rfind(" ", debut, fin)
+            espace = texte.rfind(
+                " ",
+                debut,
+                fin,
+            )
+
             if espace > debut:
                 fin = espace
 
-        morceau = texte[debut:fin].strip()
+        morceau = texte[
+            debut:fin
+        ].strip()
+
         if morceau:
             morceaux.append(morceau)
 
         if fin == len(texte):
             break
 
-        debut = max(fin - chevauchement, debut + 1)
+        debut = max(
+            fin - chevauchement,
+            debut + 1,
+        )
 
     return morceaux
 
 
-def creer_chunks(uploaded_files: List[Any]) -> List[Dict[str, Any]]:
+def creer_chunks(uploaded_files):
     chunks = []
+
     for fichier in uploaded_files:
-        pages = extraire_texte_pdf(fichier.getvalue())
+        pages = extraire_texte_pdf(
+            fichier.getvalue()
+        )
+
         for page in pages:
-            texte = nettoyer_texte(page["texte"])
+            texte = nettoyer_texte(
+                page["texte"]
+            )
+
             if not texte:
                 continue
 
-            morceaux = decouper_texte(texte)
-            for numero, morceau in enumerate(morceaux, start=1):
+            morceaux = decouper_texte(
+                texte
+            )
+
+            for numero, morceau in enumerate(
+                morceaux,
+                start=1,
+            ):
                 chunks.append(
                     {
                         "source": fichier.name,
@@ -900,34 +1466,60 @@ def creer_chunks(uploaded_files: List[Any]) -> List[Dict[str, Any]]:
 
 
 # ============================================================
-# FAISS SEARCH (RAG)
+# FAISS
 # ============================================================
 
-def creer_index(chunks: List[Dict[str, Any]]) -> faiss.IndexFlatIP:
-    textes = [chunk["texte"] for chunk in chunks]
+def creer_index(chunks):
+    textes = [
+        chunk["texte"]
+        for chunk in chunks
+    ]
+
     vecteurs = modele_embedding.encode(
-        textes, convert_to_numpy=True, normalize_embeddings=True, show_progress_bar=False
+        textes,
+        convert_to_numpy=True,
+        normalize_embeddings=True,
+        show_progress_bar=False,
     ).astype("float32")
 
-    index = faiss.IndexFlatIP(vecteurs.shape[1])
+    index = faiss.IndexFlatIP(
+        vecteurs.shape[1]
+    )
+
     index.add(vecteurs)
+
     return index
 
 
 def rechercher(
-    question: str, index: faiss.IndexFlatIP, chunks: List[Dict[str, Any]], k: int = 4, seuil_score: float = 0.25
-) -> List[Dict[str, Any]]:
+    question,
+    index,
+    chunks,
+    k=4,
+    seuil_score=0.25,
+):
     vecteur_question = modele_embedding.encode(
-        [question], convert_to_numpy=True, normalize_embeddings=True
+        [question],
+        convert_to_numpy=True,
+        normalize_embeddings=True,
     ).astype("float32")
 
-    scores, indices = index.search(vecteur_question, k)
+    scores, indices = index.search(
+        vecteur_question,
+        k,
+    )
+
     resultats = []
 
-    for score, idx in zip(scores[0], indices[0]):
+    for score, idx in zip(
+        scores[0],
+        indices[0],
+    ):
         if idx == -1:
             continue
+
         score = float(score)
+
         if score < seuil_score:
             continue
 
@@ -939,128 +1531,749 @@ def rechercher(
 
 
 # ============================================================
-# TRAITEMENT VISION & LLM
+# GEMINI VISION
 # ============================================================
 
-def analyser_image_vision(image_bytes: bytes, mime_type: str) -> str:
-    try:
-        response = gemini_client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[
-                types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
-                "Décris cette image en détail et extrait l'intégralité de son texte visible pour répondre aux questions futures.",
-            ],
-        )
-        return response.text
-    except Exception as e:
-        return f"Erreur lors de l'analyse visuelle : {e}"
+def analyser_image(image_bytes, mime_type):
+    prompt = """
+Analyse cette image avec précision.
 
+Identifie :
+- les éléments principaux ;
+- le texte visible ;
+- les objets et concepts ;
+- les relations entre les éléments ;
+- les informations importantes.
 
-def generer_reponse_llm(prompt: str) -> str:
-    try:
-        response = groq_client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="llama-3.3-70b-versatile",
-            temperature=0.3,
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"Erreur lors de la génération du texte : {e}"
+Si l'image contient un tableau, schéma,
+diagramme ou illustration pédagogique,
+explique sa structure et son contenu.
+
+Produis une description claire et exploitable
+pour une recherche dans une base documentaire.
+
+Ne fais aucune supposition qui n'est pas justifiée
+par l'image.
+"""
+
+    image_part = types.Part.from_bytes(
+        data=image_bytes,
+        mime_type=mime_type,
+    )
+
+    response = gemini_client.models.generate_content(
+        model="gemini-3-flash-preview",
+        contents=[
+            image_part,
+            prompt,
+        ],
+    )
+
+    return response.text.strip()
 
 
 # ============================================================
-# INTERFACE UTILISATEUR ET CONTENU PRINCIPAL
+# PROMPTS
 # ============================================================
 
-def render_main_content() -> None:
-    col_pdf, col_img = st.columns(2)
+def construire_prompt_pdf(question, passages):
+    contexte = "\n\n".join(
+        f'[Source : {p["source"]}, page {p["page"]}]\n'
+        f'{p["texte"]}'
+        for p in passages
+    )
 
-    with col_pdf:
-        st.markdown(f"### 📄 {tr('pdf')}")
-        files = st.file_uploader(tr("upload_pdf"), type=["pdf"], accept_multiple_files=True)
-        if files and st.button(tr("build_rag"), use_container_width=True, type="primary"):
-            with st.spinner(tr("processing")):
-                chunks = creer_chunks(files)
-                if chunks:
-                    st.session_state.rag_chunks = chunks
-                    st.session_state.rag_index = creer_index(chunks)
-                    st.session_state.rag_ready = True
-                    st.success(tr("rag_success"))
-
-    with col_img:
-        st.markdown(f"### 🖼️ {tr('image')}")
-        img_file = st.file_uploader(tr("upload_image"), type=["png", "jpg", "jpeg", "webp"])
-        if img_file and st.button(tr("analyze_image"), use_container_width=True):
-            with st.spinner(tr("analyzing")):
-                image_bytes = img_file.getvalue()
-                mime = mimetypes.guess_type(img_file.name)[0] or "image/png"
-                desc = analyser_image_vision(image_bytes, mime)
-                st.session_state.description_image = desc
-                st.session_state.image_name = img_file.name
-                st.success(tr("image_success"))
-
-    st.divider()
-
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
-
-    if prompt := st.chat_input(tr("question_placeholder")):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.write(prompt)
-
-        context_parts = []
-        sources = []
-
-        if st.session_state.rag_ready and st.session_state.rag_index:
-            docs = rechercher(prompt, st.session_state.rag_index, st.session_state.rag_chunks)
-            for d in docs:
-                context_parts.append(f"[{d['source']} p.{d['page']}]: {d['texte']}")
-                sources.append(f"{d['source']} (Page {d['page']})")
-
-        if st.session_state.description_image:
-            context_parts.append(f"[Contenu de l'image {st.session_state.image_name}]: {st.session_state.description_image}")
-
-        contexte_global = "\n\n".join(context_parts)
-        full_prompt = (
-            f"Réponds en {st.session_state.language} à la question suivante en t'appuyant rigoureusement sur le contexte fourni.\n\n"
-            f"Contexte:\n{contexte_global}\n\n"
-            f"Question: {prompt}"
+    if not contexte:
+        contexte = (
+            "Aucun passage suffisamment pertinent "
+            "n'a été trouvé."
         )
 
-        with st.chat_message("assistant"):
-            with st.spinner(tr("processing")):
-                res = generer_reponse_llm(full_prompt)
-                st.write(res)
-                if sources:
-                    st.caption(f"**{tr('sources')}:** " + ", ".join(set(sources)))
+    return f"""
+Tu es un assistant documentaire intelligent.
 
-        st.session_state.messages.append({"role": "assistant", "content": res})
+Réponds uniquement à partir du CONTEXTE fourni.
 
-        if st.session_state.user_id:
-            if not st.session_state.active_conversation_id:
-                conv_id = create_conversation(st.session_state.user_id, prompt[:30])
-                st.session_state.active_conversation_id = conv_id
+RÈGLES :
+- Réponds de manière claire et concise.
+- N'invente aucune information.
+- N'utilise pas tes connaissances générales.
+- Utilise uniquement les informations du contexte.
+- Si l'information est absente, réponds :
+« Information non précisée dans les documents fournis. »
+- Cite la source et la page lorsque disponibles.
 
-            save_message(st.session_state.active_conversation_id, "user", prompt)
-            save_message(st.session_state.active_conversation_id, "assistant", res)
+CONTEXTE :
+{contexte}
+
+QUESTION :
+{question}
+
+RÉPONSE :
+""".strip()
+
+
+def construire_prompt_image(question, description):
+    return f"""
+Tu es un assistant capable d'analyser des images.
+
+DESCRIPTION DE L'IMAGE :
+{description}
+
+QUESTION :
+{question}
+
+Réponds uniquement à partir des informations
+identifiées dans l'image.
+
+N'invente aucune information.
+""".strip()
+
+
+def construire_prompt_image_pdf(
+    question,
+    description,
+    passages,
+):
+    contexte = "\n\n".join(
+        f'[Source : {p["source"]}, page {p["page"]}]\n'
+        f'{p["texte"]}'
+        for p in passages
+    )
+
+    if not contexte:
+        contexte = (
+            "Aucun passage pertinent n'a été trouvé "
+            "dans les PDF."
+        )
+
+    return f"""
+Tu es un assistant documentaire multimodal.
+
+DESCRIPTION DE L'IMAGE :
+{description}
+
+CONTEXTE DES PDF :
+{contexte}
+
+QUESTION :
+{question}
+
+RÈGLES :
+1. Analyse les informations de l'image.
+2. Utilise les PDF pour compléter ou expliquer
+   l'image lorsqu'une relation pertinente existe.
+3. Ne crée aucune relation artificielle.
+4. N'invente aucune information.
+5. Distingue les informations provenant de l'image
+   et celles provenant des PDF.
+6. Cite les sources et pages des PDF utilisées.
+7. Si l'information n'est disponible ni dans l'image
+   ni dans les PDF, indique-le clairement.
+
+RÉPONSE :
+""".strip()
 
 
 # ============================================================
-# MAIN APPLICATION
+# GROQ
 # ============================================================
 
-def main() -> None:
-    apply_theme()
-    render_topbar()
+def generer_reponse(prompt):
+    completion = groq_client.chat.completions.create(
+        model="openai/gpt-oss-20b",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        temperature=0.2,
+    )
 
-    if st.session_state.show_auth:
-        render_auth()
+    return (
+        completion
+        .choices[0]
+        .message
+        .content
+        .strip()
+    )
+
+
+def repondre_pdf(question, index, chunks):
+    passages = rechercher(
+        question,
+        index,
+        chunks,
+        k=4,
+    )
+
+    reponse = generer_reponse(
+        construire_prompt_pdf(
+            question,
+            passages,
+        )
+    )
+
+    sources = sorted(
+        {
+            (p["source"], p["page"])
+            for p in passages
+        }
+    )
+
+    return reponse, sources
+
+
+def repondre_image(question, description):
+    return generer_reponse(
+        construire_prompt_image(
+            question,
+            description,
+        )
+    )
+
+
+def repondre_image_pdf(
+    question,
+    description,
+    index,
+    chunks,
+):
+    recherche = (
+        f"{question}\n\n"
+        f"Informations identifiées dans l'image :\n"
+        f"{description}"
+    )
+
+    passages = rechercher(
+        recherche,
+        index,
+        chunks,
+        k=4,
+    )
+
+    reponse = generer_reponse(
+        construire_prompt_image_pdf(
+            question,
+            description,
+            passages,
+        )
+    )
+
+    sources = sorted(
+        {
+            (p["source"], p["page"])
+            for p in passages
+        }
+    )
+
+    return reponse, sources
+
+
+# ============================================================
+# CHAT HISTORY
+# ============================================================
+
+def add_chat_message(role, content):
+    st.session_state.messages.append(
+        {
+            "role": role,
+            "content": content,
+        }
+    )
+
+
+def persist_chat(user_question, assistant_answer):
+    if not st.session_state.user_id:
+        return
+
+    if not st.session_state.active_conversation_id:
+        title = user_question[:60].strip()
+
+        conversation_id = create_conversation(
+            st.session_state.user_id,
+            title or tr("conversation"),
+        )
+
+        st.session_state.active_conversation_id = conversation_id
+
+    save_message(
+        st.session_state.active_conversation_id,
+        "user",
+        user_question,
+    )
+
+    save_message(
+        st.session_state.active_conversation_id,
+        "assistant",
+        assistant_answer,
+    )
+
+
+# ============================================================
+# APPLY UI
+# ============================================================
+
+apply_theme()
+render_topbar()
+render_sidebar()
+
+
+# ============================================================
+# AUTH SCREEN
+# ============================================================
+
+if st.session_state.get("show_auth", False):
+    render_auth()
+    st.stop()
+
+
+# ============================================================
+# HERO
+# ============================================================
+
+direction = "rtl" if st.session_state.language == "ar" else "ltr"
+
+st.markdown(
+    f"""
+    <div class="hero" dir="{direction}">
+        <div class="hero-title">{tr("app_name")}</div>
+        <div class="hero-subtitle">{tr("tagline")}</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# ============================================================
+# USER STATUS
+# ============================================================
+
+if st.session_state.user_id:
+    st.markdown(
+        f"""
+        <div class="card">
+            <span class="status-pill">
+                👤 {st.session_state.username}
+            </span>
+            <span class="small-muted">
+                &nbsp; {tr("login_to_save")}
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+else:
+    st.info(
+        f"👤 {tr('guest_not_saved')}"
+    )
+
+def afficher_pdf(pdf_file, hauteur=700):
+    pdf_bytes = pdf_file.getvalue()
+    pdf_base64 = base64.b64encode(pdf_bytes).decode("utf-8")
+
+    pdf_html = f"""
+    <div style="
+        width: 100%;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid rgba(128,128,128,0.25);
+        background: white;
+    ">
+        <iframe
+            src="data:application/pdf;base64,{pdf_base64}"
+            width="100%"
+            height="{hauteur}"
+            style="border: none;"
+        ></iframe>
+    </div>
+    """
+
+    components.html(
+        pdf_html,
+        height=hauteur + 20,
+        scrolling=False,
+    )
+    
+# ============================================================
+# FILE UPLOADS
+# ============================================================
+
+pdf_col, image_col = st.columns(
+    2,
+    gap="large",
+)
+
+with pdf_col:
+    st.markdown(
+        f"### 📄 {tr('pdf')}"
+    )
+
+    uploaded_files = st.file_uploader(
+        tr("upload_pdf"),
+        type=["pdf"],
+        accept_multiple_files=True,
+        key="pdf_uploader",
+    )
+# ============================================================
+# PDF READER
+# ============================================================
+
+if uploaded_files:
+    st.markdown("### 📖 Lecture des documents")
+
+    for pdf_file in uploaded_files:
+        with st.expander(
+            f"📄 {pdf_file.name}",
+            expanded=True,
+        ):
+            afficher_pdf(pdf_file)
+
+# ============================================================
+# PDF SEARCH
+# ============================================================
+
+if uploaded_files:
+    st.markdown("### 🔎 Recherche dans les PDF")
+
+    search_col, search_button_col = st.columns([5, 1])
+
+    with search_col:
+        recherche = st.text_input(
+            "Rechercher un mot ou une expression",
+            placeholder="Exemple : permis de conduire",
+            key="pdf_search_input",
+        )
+
+    with search_button_col:
+        st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
+        search_clicked = st.button(
+            "🔍",
+            use_container_width=True,
+            key="pdf_search_button",
+        )
+
+    if search_clicked:
+        if not recherche.strip():
+            st.warning("Veuillez saisir un mot ou une expression.")
+            st.session_state.pdf_search_results = []
+        else:
+            with st.spinner("Recherche dans les PDF..."):
+                st.session_state.pdf_search_results = rechercher_dans_pdf(
+                    uploaded_files,
+                    recherche,
+                )
+
+    if st.session_state.pdf_search_results:
+        st.success(
+            f"{len(st.session_state.pdf_search_results)} résultat(s) trouvé(s)."
+        )
+
+        for resultat in st.session_state.pdf_search_results:
+            with st.expander(
+                f"📄 {resultat['source']} — page {resultat['page']}",
+                expanded=False,
+            ):
+                st.write(resultat["extrait"])
+    elif search_clicked and recherche.strip():
+        st.info(f'Aucun résultat pour "{recherche}".')
+
+with image_col:
+    st.markdown(
+        f"### 🖼️ {tr('image')}"
+    )
+
+    uploaded_image = st.file_uploader(
+        tr("upload_image"),
+        type=["png", "jpg", "jpeg", "webp"],
+        key="image_uploader",
+    )
+
+
+# ============================================================
+# BUILD RAG
+# ============================================================
+
+def fichiers_signature(fichiers):
+    if not fichiers:
+        return None
+
+    return tuple(
+        (f.name, f.size)
+        for f in fichiers
+    )
+
+
+if uploaded_files:
+    current_signature = fichiers_signature(uploaded_files)
+
+    if st.session_state.get("pdf_signature") != current_signature:
+        st.session_state.rag_ready = False
+        st.session_state.pop("index", None)
+        st.session_state.pop("chunks", None)
+        st.session_state.last_sources = []
+        st.session_state.pdf_signature = current_signature
+
+else:
+    st.session_state.rag_ready = False
+    st.session_state.pop("index", None)
+    st.session_state.pop("chunks", None)
+    st.session_state.last_sources = []
+    st.session_state.pdf_signature = None
+
+if uploaded_files:
+    if st.button(
+        f"🔨 {tr('build_rag')}",
+        use_container_width=True,
+    ):
+        with st.spinner(tr("processing")):
+            chunks = creer_chunks(
+                uploaded_files
+            )
+
+            if not chunks:
+                st.error(
+                    "❌ Aucun texte exploitable "
+                    "n'a été trouvé dans les PDF."
+                )
+                st.stop()
+
+            index = creer_index(chunks)
+
+            st.session_state.chunks = chunks
+            st.session_state.index = index
+            st.session_state.rag_ready = True
+            st.session_state.last_sources = []
+
+        st.success(
+            f"✅ {tr('rag_ready')} — "
+            f"{len(chunks)} chunks."
+        )
+
+
+# ============================================================
+# IMAGE ANALYSIS
+# ============================================================
+
+if uploaded_image:
+    if st.session_state.get("image_signature") != (
+        uploaded_image.name,
+        uploaded_image.size,
+    ):
+        st.session_state.description_image = None
+        st.session_state.image_name = None
+        st.session_state.image_signature = (
+            uploaded_image.name,
+            uploaded_image.size,
+        )
+
+else:
+    st.session_state.description_image = None
+    st.session_state.image_name = None
+    st.session_state.image_signature = None
+
+if uploaded_image:
+    image_bytes = uploaded_image.getvalue()
+    mime_type = uploaded_image.type
+
+    st.image(
+        image_bytes,
+        caption=uploaded_image.name,
+        use_container_width=True,
+    )
+
+    if st.button(
+        f"🔍 {tr('analyze_image')}",
+        use_container_width=True,
+    ):
+        with st.spinner(tr("analyzing")):
+            try:
+                description = analyser_image(
+                    image_bytes,
+                    mime_type,
+                )
+
+                st.session_state.description_image = description
+                st.session_state.image_name = uploaded_image.name
+
+                st.success(
+                    f"✅ {tr('image_success')}"
+                )
+
+            except Exception as error:
+                st.error(
+                    f"❌ Gemini : {error}"
+                )
+
+
+if st.session_state.description_image:
+    with st.expander(
+        f"👁️ {tr('image_understanding')}",
+        expanded=False,
+    ):
+        st.write(
+            st.session_state.description_image
+        )
+
+
+# ============================================================
+# CHAT
+# ============================================================
+
+st.divider()
+
+st.markdown(
+    f"### 💬 {tr('assistant')}"
+)
+
+for message in st.session_state.messages:
+    if message["role"] == "user":
+        st.markdown(
+            f"""
+            <div class="user-message">
+                <strong>Vous</strong><br>
+                {message["content"]}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     else:
-        render_sidebar()
-        render_main_content()
+        st.markdown(
+            f"""
+            <div class="bot-message">
+                <strong>🤖 {tr("assistant")}</strong><br>
+                {message["content"]}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
-if __name__ == "__main__":
-    main()
+question = st.text_input(
+    tr("question"),
+    placeholder=tr("question_placeholder"),
+    key="chat_question",
+)
+
+
+if st.button(
+    f"➤ {tr('send')}",
+    use_container_width=True,
+    type="primary",
+):
+    if not question.strip():
+        st.warning(
+            tr("empty_question")
+        )
+        st.stop()
+
+    has_pdf = (
+        "index" in st.session_state
+        and "chunks" in st.session_state
+        and st.session_state.rag_ready
+    )
+
+    has_image = bool(
+        st.session_state.description_image
+    )
+
+    mode = st.session_state.mode
+
+    if mode == "pdf" and not has_pdf:
+        st.warning(tr("no_rag"))
+        st.stop()
+
+    if mode == "image" and not has_image:
+        st.warning(tr("no_image_analysis"))
+        st.stop()
+
+    if mode == "multimodal" and not (has_pdf and has_image):
+        st.warning(
+            "Le mode PDF + Image nécessite un RAG construit et une image analysée."
+        )
+        st.stop()
+
+    if mode == "auto" and not has_pdf and not has_image:
+        st.warning(tr("pdf_or_image"))
+        st.stop()
+
+    try:
+        use_multimodal = (
+            mode == "multimodal"
+            or (mode == "auto" and has_image and has_pdf)
+        )
+        use_image = mode == "image" or (mode == "auto" and has_image and not has_pdf)
+
+        if use_multimodal:
+            with st.spinner(
+                tr("searching")
+            ):
+                answer, sources = repondre_image_pdf(
+                    question,
+                    st.session_state.description_image,
+                    st.session_state.index,
+                    st.session_state.chunks,
+                )
+
+        elif use_image:
+            with st.spinner(
+                tr("analyzing")
+            ):
+                answer = repondre_image(
+                    question,
+                    st.session_state.description_image,
+                )
+
+            sources = []
+
+        else:
+            with st.spinner(
+                tr("searching")
+            ):
+                answer, sources = repondre_pdf(
+                    question,
+                    st.session_state.index,
+                    st.session_state.chunks,
+                )
+
+        add_chat_message(
+            "user",
+            question,
+        )
+
+        add_chat_message(
+            "assistant",
+            answer,
+        )
+
+        st.session_state.last_sources = sources
+
+        # Only authenticated users get permanent storage.
+        persist_chat(
+            question,
+            answer,
+        )
+
+        st.rerun()
+
+    except Exception as error:
+        st.error(
+            f"❌ {error}"
+        )
+
+
+# ============================================================
+# SOURCES OF LAST RESPONSE
+# ============================================================
+
+if st.session_state.last_sources:
+    st.markdown(
+        f"### 📚 {tr('sources')}"
+    )
+
+    for source, page in st.session_state.last_sources:
+        st.write(
+            f"📄 {source} — page {page}"
+        )

@@ -654,6 +654,7 @@ def apply_theme():
         .stApp {{
             background: {background};
             {app_background}
+            --accent: {accent};
             background-size: cover;
             background-position: center center;
             background-attachment: fixed;
@@ -948,7 +949,7 @@ def render_topbar():
             <div class="brand-wrap">
                 {logo_html}
                 <div class="brand">
-                    <i class="fa-solid fa-layer-group" style="margin-right:7px;color:{accent};"></i>{tr("app_name")}
+                    <i class="fa-solid fa-layer-group" style="margin-right:7px;color:var(--accent);"></i>{tr("app_name")}
                     <div class="brand-sub">{tr("tagline")}</div>
                 </div>
             </div>

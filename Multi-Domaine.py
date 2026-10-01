@@ -51,27 +51,21 @@ DB_PATH = str(BASE_DIR / "multidomaine.db")
 
 
 def trouver_background():
-    """Trouve automatiquement l'image de background dans assets/."""
-    if not ASSETS_DIR.exists():
-        return None
-
+    """Trouve l'image de background à la racine ou dans assets/."""
     extensions = {".png", ".jpg", ".jpeg", ".webp"}
-    images = [
-        path for path in ASSETS_DIR.iterdir()
-        if path.is_file() and path.suffix.lower() in extensions
-    ]
-
-    if not images:
-        return None
-
-    images.sort(
-        key=lambda path: (
-            "background" not in path.stem.lower(),
-            path.name.lower(),
-        )
-    )
-
-    return images[0]
+    
+    # 1. Chercher d'abord dans assets/
+    if ASSETS_DIR.exists():
+        for path in ASSETS_DIR.iterdir():
+            if path.is_file() and path.suffix.lower() in extensions:
+                if "background" in path.stem.lower() or "bg" in path.stem.lower():
+                    return path
+        # Si aucun mot 'background' trouvé, prendre la 1ère image du dossier assets
+        images = [p for p in ASSETS_DIR.iterdir() if p.suffix.lower() in extensions]
+        if images:
+            return images[0]
+            
+    return None
 
 
 def encoder_background():

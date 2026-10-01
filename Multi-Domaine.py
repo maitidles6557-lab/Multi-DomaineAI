@@ -677,13 +677,51 @@ def apply_theme():
             background: transparent;
         }}
 
+        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+        [data-testid="stSidebar"] [data-testid="stCaptionContainer"],
+        [data-testid="stSidebar"] h1,
+        [data-testid="stSidebar"] h2,
+        [data-testid="stSidebar"] h3,
+        [data-testid="stSidebar"] label,
+        [data-testid="stSidebar"] label p {{
+            color: {text} !important;
+        }}
+
+        [data-testid="stSidebar"] .stDivider,
+        [data-testid="stSidebar"] hr {{
+            border-color: {border} !important;
+        }}
+
+        .sidebar-section-title {{
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            margin: 2px 0 14px 0;
+            color: {text};
+            font-size: 15px;
+            font-weight: 750;
+            letter-spacing: .1px;
+        }}
+
+        .sidebar-section-title i {{
+            width: 27px;
+            height: 27px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            color: white;
+            background: linear-gradient(135deg, {accent}, {accent_2});
+            font-size: 12px;
+        }}
+
         .topbar {{
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 18px;
-            padding: 12px 16px;
-            margin-bottom: 26px;
+            padding: 10px 14px;
+            margin-bottom: 24px;
             background: {surface};
             border: 1px solid {border};
             border-radius: 18px;
@@ -827,26 +865,55 @@ def apply_theme():
 
         [data-testid="stRadio"] label {{
             color: {text} !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 7px !important;
+            padding: 6px 8px !important;
+            border-radius: 10px !important;
+            transition: background .18s ease, color .18s ease;
+        }}
+
+        [data-testid="stRadio"] label:hover {{
+            background: {surface_2} !important;
+        }}
+
+        [data-testid="stRadio"] label > div:first-child {{
+            display: none !important;
+        }}
+
+        [data-testid="stRadio"] label p {{
+            color: {text} !important;
+            margin: 0 !important;
         }}
 
         [data-testid="stRadio"] label p::before {{
             font-family: "Font Awesome 6 Free";
             font-weight: 900;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             width: 22px;
-            margin-right: 7px;
+            margin-right: 5px;
             color: {accent};
         }}
 
-        [data-testid="stRadio"] label:nth-child(1) p::before {{ content: "\f135"; }}
-        [data-testid="stRadio"] label:nth-child(2) p::before {{ content: "\f1c1"; }}
-        [data-testid="stRadio"] label:nth-child(3) p::before {{ content: "\f03e"; }}
-        [data-testid="stRadio"] label:nth-child(4) p::before {{ content: "\f0c1"; }}
+        [data-testid="stRadio"] label:nth-of-type(1) p::before {{ content: "\f135"; }}
+        [data-testid="stRadio"] label:nth-of-type(2) p::before {{ content: "\f1c1"; }}
+        [data-testid="stRadio"] label:nth-of-type(3) p::before {{ content: "\f03e"; }}
+        [data-testid="stRadio"] label:nth-of-type(4) p::before {{ content: "\f0c1"; }}
 
         [data-testid="stFileUploader"] section {{
-            background: {surface};
-            border: 1px dashed {border};
+            background: {surface} !important;
+            border: 1px dashed {border} !important;
             border-radius: 14px;
+        }}
+
+        [data-testid="stFileUploader"] section * {{
+            color: {text} !important;
+        }}
+
+        [data-testid="stAlert"] {{
+            border-radius: 14px !important;
         }}
 
         [data-testid="stExpander"] {{
@@ -868,9 +935,9 @@ def apply_theme():
 
         .stButton > button {{
             border-radius: 11px;
-            border: 1px solid {border};
-            color: {text};
-            background: {surface};
+            border: 1px solid {border} !important;
+            color: {text} !important;
+            background: {surface} !important;
             font-weight: 650;
             transition: all .18s ease;
         }}
@@ -896,6 +963,17 @@ def apply_theme():
         }}
 
         /* Professional Font Awesome icons used by our HTML headings. */
+        .section-heading {{
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            margin: 8px 0 12px 0;
+            color: {text};
+            font-size: 20px;
+            font-weight: 780;
+            letter-spacing: -.2px;
+        }}
+
         .section-icon {{
             display: inline-flex;
             width: 30px;
@@ -1141,7 +1219,10 @@ def render_auth():
 # ============================================================
 
 def render_mode_selector():
-    st.markdown(f"### {tr('mode')}")
+    st.markdown(
+        f'<div class="sidebar-section-title"><i class="fa-solid fa-sliders"></i><span>{tr("mode")}</span></div>',
+        unsafe_allow_html=True,
+    )
 
     mode = st.radio(
         tr("mode"),
@@ -1981,7 +2062,8 @@ pdf_col, image_col = st.columns(
 
 with pdf_col:
     st.markdown(
-        f'<h3><span class="section-icon"><i class="fa-regular fa-file-pdf"></i></span>{tr("pdf")}</h3>'
+        f'<div class="section-heading"><span class="section-icon"><i class="fa-regular fa-file-pdf"></i></span>{tr("pdf")}</div>',
+        unsafe_allow_html=True,
     )
 
     uploaded_files = st.file_uploader(
@@ -1995,7 +2077,7 @@ with pdf_col:
 # ============================================================
 
 if uploaded_files:
-    st.markdown('<h3><span class="section-icon"><i class="fa-solid fa-book-open"></i></span>Lecture des documents</h3>', unsafe_allow_html=True)
+    st.markdown('<div class="section-heading"><span class="section-icon"><i class="fa-solid fa-book-open"></i></span>Lecture des documents</div>', unsafe_allow_html=True)
 
     for pdf_file in uploaded_files:
         with st.expander(
@@ -2009,7 +2091,7 @@ if uploaded_files:
 # ============================================================
 
 if uploaded_files:
-    st.markdown('<h3><span class="section-icon"><i class="fa-solid fa-magnifying-glass"></i></span>Recherche dans les PDF</h3>', unsafe_allow_html=True)
+    st.markdown('<div class="section-heading"><span class="section-icon"><i class="fa-solid fa-magnifying-glass"></i></span>Recherche dans les PDF</div>', unsafe_allow_html=True)
 
     search_col, search_button_col = st.columns([5, 1])
 
@@ -2055,7 +2137,8 @@ if uploaded_files:
 
 with image_col:
     st.markdown(
-        f'<h3><span class="section-icon"><i class="fa-regular fa-image"></i></span>{tr("image")}</h3>'
+        f'<div class="section-heading"><span class="section-icon"><i class="fa-regular fa-image"></i></span>{tr("image")}</div>',
+        unsafe_allow_html=True,
     )
 
     uploaded_image = st.file_uploader(
@@ -2198,7 +2281,8 @@ if st.session_state.description_image:
 st.divider()
 
 st.markdown(
-    f'<h3><span class="section-icon"><i class="fa-solid fa-comments"></i></span>{tr("assistant")}</h3>'
+    f'<div class="section-heading"><span class="section-icon"><i class="fa-solid fa-comments"></i></span>{tr("assistant")}</div>',
+    unsafe_allow_html=True,
 )
 
 for message in st.session_state.messages:

@@ -17,7 +17,7 @@ import faiss
 from google import genai
 from google.genai import types
 from groq import Groq
-0import pymupdf
+import pymupdf
 from sentence_transformers import SentenceTransformer
 import streamlit as st
 

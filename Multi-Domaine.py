@@ -17,8 +17,7 @@ import faiss
 from google import genai
 from google.genai import types
 from groq import Groq
-from PIL import Image
-import pymupdf
+0import pymupdf
 from sentence_transformers import SentenceTransformer
 import streamlit as st
 
@@ -454,20 +453,22 @@ def apply_theme() -> None:
         background_overlay = "linear-gradient(135deg, rgba(7,11,20,0.92), rgba(15,23,42,0.88))"
         surface = "rgba(15,23,42,0.92)"
         text = "#F8FAFC"
-        muted = "#CBD5E1"
+        muted = "#94A3B8"
         border = "rgba(148,163,184,0.18)"
         accent = "#8B5CF6"
         accent_2 = "#3B82F6"
-        label_color = "#E2E8F0"
+        uploader_bg = "rgba(30, 41, 59, 0.7)"
+        uploader_border = "rgba(148, 163, 184, 0.3)"
     elif st.session_state.theme == "soft":
-        background_overlay = "linear-gradient(135deg, rgba(232,240,255,0.65), rgba(243,232,255,0.65))"
-        surface = "rgba(255,255,255,0.85)"
+        background_overlay = "linear-gradient(135deg, rgba(220, 226, 238, 0.85), rgba(235, 238, 245, 0.85))"
+        surface = "rgba(255, 255, 255, 0.85)"
         text = "#1E293B"
-        muted = "#64748B"
-        border = "rgba(99,102,241,0.18)"
+        muted = "#475569"
+        border = "rgba(99, 102, 241, 0.2)"
         accent = "#6366F1"
         accent_2 = "#8B5CF6"
-        label_color = "#334155"
+        uploader_bg = "rgba(255, 255, 255, 0.75)"
+        uploader_border = "rgba(99, 102, 241, 0.3)"
     else:
         background_overlay = "linear-gradient(135deg, rgba(246,248,252,0.90), rgba(255,255,255,0.85))"
         surface = "rgba(255,255,255,0.90)"
@@ -476,7 +477,8 @@ def apply_theme() -> None:
         border = "rgba(148,163,184,0.24)"
         accent = "#4F46E5"
         accent_2 = "#7C3AED"
-        label_color = "#1E293B"
+        uploader_bg = "rgba(241, 245, 249, 0.8)"
+        uploader_border = "rgba(203, 213, 225, 0.8)"
 
     app_background = (
         f"background-image: {background_overlay}, url('{BACKGROUND_IMAGE}');"
@@ -510,15 +512,60 @@ def apply_theme() -> None:
         .brand-sub {{ font-size: 13px; color: {muted} !important; margin-top: 2px; font-weight: 500; }}
         .card {{ background: {surface}; border: 1px solid {border}; border-radius: 18px; padding: 18px; margin-bottom: 18px; direction: {direction}; text-align: {text_align}; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }}
         .auth-box {{ max-width: 470px; margin: 40px auto; padding: 28px; background: {surface}; border: 1px solid {border}; border-radius: 20px; box-shadow: 0 15px 45px rgba(15,23,42,0.08); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); direction: {direction}; }}
-        .stButton > button {{ border-radius: 11px; border: 1px solid {border}; font-weight: 600; transition: all 0.2s ease; }}
-        .stButton > button:hover {{ transform: translateY(-2px); border-color: {accent}; box-shadow: 0 8px 20px rgba(99,102,241,0.15); }}
-        .stButton > button[kind="primary"] {{ background: linear-gradient(135deg, {accent}, {accent_2}); color: white; border: none; }}
         
-        label[data-testid="stFileUploaderDropzoneInstructions"] span {{
-            color: {label_color} !important;
-            font-weight: 600 !important;
+        /* Boutons généraux */
+        .stButton > button {{
+            border-radius: 11px;
+            border: 1px solid {border};
+            background-color: {surface};
+            color: {text};
+            font-weight: 600;
+            transition: all 0.2s ease;
         }}
-        p, span, label {{
+        .stButton > button:hover {{
+            transform: translateY(-2px);
+            border-color: {accent};
+            box-shadow: 0 8px 20px rgba(99,102,241,0.15);
+        }}
+        .stButton > button[kind="primary"] {{
+            background: linear-gradient(135deg, {accent}, {accent_2});
+            color: white !important;
+            border: none;
+        }}
+
+        /* Style spécifique pour les zones d'importation de fichiers (File Uploader) */
+        [data-testid="stFileUploader"] {{
+            background-color: {uploader_bg};
+            border: 1px dashed {uploader_border};
+            border-radius: 14px;
+            padding: 12px;
+        }}
+        [data-testid="stFileUploader"] section {{
+            background-color: transparent !important;
+        }}
+        [data-testid="stFileUploader"] span, 
+        [data-testid="stFileUploader"] p, 
+        [data-testid="stFileUploader"] small,
+        [data-testid="stFileUploader"] label {{
+            color: {text} !important;
+        }}
+        [data-testid="stFileUploader"] button {{
+            background-color: {surface} !important;
+            color: {text} !important;
+            border: 1px solid {border} !important;
+        }}
+
+        /* Style pour la zone de saisie du Chat */
+        [data-testid="stChatInput"] {{
+            background-color: {surface};
+            border: 1px solid {border};
+            border-radius: 14px;
+        }}
+        [data-testid="stChatInput"] textarea {{
+            color: {text} !important;
+        }}
+
+        p, span, label, h1, h2, h3, h4 {{
             color: {text};
         }}
         </style>
